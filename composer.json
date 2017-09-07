@@ -1,0 +1,22 @@
+{
+  "name": "pkeidel/dbtolaravel",
+  "description": "Reads a database and creates the migrations, models, controllers and blades for the tables",
+  "keywords": ["laravel5", "dbtolaravel", "db2laravel"],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "PKeidel",
+      "email": "PKeidel@sags-per-mail.de"
+    }
+  ],
+  "require": {
+    "php": ">=5.4.0",
+    "doctrine/dbal": "^2.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "PKeidel\\DBtoLaravel\\": "src/"
+    }
+  },
+  "minimum-stability": "stable"
+}
