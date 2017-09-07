@@ -1,5 +1,11 @@
 # README #
 
-cd /path/to/laravel/
+<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
 
-git clone [url] PKeidel
+## Install
+As always, add it to your app/config.php:
+
+'providers' => [
+    // ....
+    PKeidel\DBtoLaravel\Providers\DBtoLaravelServiceProvider::class,
+]
