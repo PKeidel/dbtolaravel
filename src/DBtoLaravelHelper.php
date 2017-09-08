@@ -454,10 +454,11 @@ use Illuminate\Database\Eloquent\Model;
 
         foreach ($infos['cols'] as $colname => $col) {
             $col = (object) $col;
-            if($colname != "id")
+            if(!in_array($colname, ['id', 'created_at', 'updated_at', 'deleted_at']))
                 $fillable[] = $colname;
             switch($col->type) {
                 case 'integer':
+                case 'bigint':
                     echo " * @property int $colname\n";
                     break;
                 case 'decimal':
@@ -478,12 +479,13 @@ use Illuminate\Database\Eloquent\Model;
             }
         }
 
+        $fillable = count($fillable) ? "\n    protected \$fillable = ['".implode("','", $fillable)."'];" : '';
+        $dates    = count($dates) ? "\n    protected \$dates = ['".implode("','", $dates)."'];" : '';
+        $casts    = strlen($casts) ? "\n    protected \$casts = [".(strlen($casts) ? substr($casts, 2) : '')."];" : '';
+
         echo "*/
 class $name extends Model {{$uses}
-    protected \$table    = '{$infos['meta']['name']}';
-    protected \$fillable = ".json_encode($fillable).";
-    protected \$dates    = ".json_encode($dates).";
-    protected \$casts    = [".(strlen($casts) ? substr($casts, 2) : '')."];";
+    protected \$table    = '{$infos['meta']['name']}';{$fillable}{$dates}{$casts}";
 
         // hasMany
         foreach($infos['meta']['hasMany'] as $cls) {
