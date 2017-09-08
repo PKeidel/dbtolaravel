@@ -55,4 +55,35 @@ class DBtoLaravelController extends Controller {
             ]
         ];
     }
+
+	public function writeToFile($connection, $table, $key, $overwrite = FALSE) {
+		$infos   = $this->getInfos($connection, $table);
+
+		if(!isset($infos[$key]))
+			return ['error' => "Key $key not found"];
+
+		$content = $infos[$key];
+
+		$file = '/tmp';
+
+		switch($key) {
+			case 'migration':
+				$file  = date('Y_m_d_His')."_create_{$table}_table.php";
+				$file = database_path("migrations/$file");
+				break;
+			case 'controller':
+				$file  = ucfirst($table).'Controller';
+				$file = app_path("Http/Controllers/$file.php");
+				break;
+			case 'model':
+				$file  = ucfirst($table);
+				$file = app_path("Models/$file.php");
+				break;
+		}
+
+		if($overwrite === FALSE && file_exists($file))
+			return ['error' => "File $file already exists", 'key' => 'file-exists'];
+
+		return ['error' => file_put_contents($file, $content) === FALSE];
+    }
 }

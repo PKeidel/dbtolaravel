@@ -7,6 +7,7 @@ use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Types\IntegerType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Database\MySqlConnection;
 
 /*
 TODO Support morphs
@@ -26,62 +27,72 @@ class DBtoLaravelHelper {
         $this->connection = isset($connection) ? $connection : config('database.default');
         $this->driver     = config("database.connections.$connection")['driver'];
 
-        $this->manager    = DB::connection($this->connection)->getDoctrineSchemaManager();
+        $infos = Cache::remember("dbtolaravel:tables:$connection", 15, function() {
+	        /** @var MySqlConnection $con */
+	        $con = DB::connection($this->connection);
 
-        $tables = $this->manager->listTableNames();
-        $infos  = [];
-        foreach($tables as $tbl) {
-            $colsTmp = $this->manager->listTableColumns($tbl);
-            $cols    = [];
+	        // Set up some mappings
+	        // Allow user to type some own mappings into some textfield "enum=string"
+	        $platform = $con->getDoctrineConnection()->getDatabasePlatform();
+	        $platform->registerDoctrineTypeMapping('enum', 'string');
 
-            // $cols verarbeiten und $meta generieren
-            /** @var Column $col */
-            foreach($colsTmp as $col) {
-                $cols[$col->getName()] = [
-                    'line'          => 'na',
-                    'matches'       => '',
-                    'type'          => $col->getType()->getName(),
-                    'len'           => $col->getLength(),
-                    'unsigned'      => $col->getUnsigned(),
-                    'null'          => !$col->getNotnull(),
-                    'autoincrement' => $col->getAutoincrement(),
-                    'default'       => $col->getDefault(),
-                    'comment'       => $col->getComment(),
-                ];
-            }
+	        $this->manager    = $con->getDoctrineSchemaManager();
 
-            $dependson = [];
-            $foreigns  = [];
-            $tmp       = $this->manager->listTableForeignKeys($tbl);
-            foreach($tmp as $foreign) {
-                /** ForeignKeyConstraint $foreign */
-                if(!in_array($foreign->getForeignTableName(), $dependson))
-                    $dependson[] = $foreign->getForeignTableName();
+	        $tables = $this->manager->listTableNames();
+	        $infos  = [];
+	        foreach($tables as $tbl) {
+		        $colsTmp = $this->manager->listTableColumns($tbl);
+		        $cols    = [];
 
-                $foreigns[] = ['col' => $foreign->getLocalColumns()[0], 'refCol' => $foreign->getForeignColumns()[0], 'refTbl' => $foreign->getForeignTableName()];
-            }
+		        // $cols verarbeiten und $meta generieren
+		        /** @var Column $col */
+		        foreach($colsTmp as $col) {
+			        $cols[$col->getName()] = [
+				        'type'          => $col->getType()->getName(),
+				        'len'           => $col->getLength(),
+				        'unsigned'      => $col->getUnsigned(),
+				        'null'          => !$col->getNotnull(),
+				        'autoincrement' => $col->getAutoincrement(),
+				        'default'       => $col->getDefault(),
+				        'comment'       => $col->getComment(),
+			        ];
+		        }
+
+		        $dependson = [];
+		        $foreigns  = [];
+		        $tmp       = $this->manager->listTableForeignKeys($tbl);
+		        foreach($tmp as $foreign) {
+			        /** ForeignKeyConstraint $foreign */
+			        if(!in_array($foreign->getForeignTableName(), $dependson))
+				        $dependson[] = $foreign->getForeignTableName();
+
+			        $foreigns[] = ['col' => $foreign->getLocalColumns()[0], 'refCol' => $foreign->getForeignColumns()[0], 'refTbl' => $foreign->getForeignTableName()];
+		        }
 
 
-            $infos[$tbl] = ['meta' => [
-                'name' => $tbl,
-                'index' => $this->manager->listTableIndexes($tbl),
-                'foreign' => $foreigns,
-                'dependson' => $dependson,
-                'hasMany' => [],
-                'belongsTo' => [],
-                'useSoftDelete' => isset($cols['deleted_at']),
-                'useTimestamps' => isset($cols['created_at']) && isset($cols['updated_at'])
-            ], 'cols' => $cols];
-        }
+		        $infos[$tbl] = ['meta' => [
+			        'name' => $tbl,
+			        'index' => $this->manager->listTableIndexes($tbl),
+			        'foreign' => $foreigns,
+			        'dependson' => $dependson,
+			        'hasMany' => [],
+			        'belongsTo' => [],
+			        'useSoftDelete' => isset($cols['deleted_at']),
+			        'useTimestamps' => isset($cols['created_at']) && isset($cols['updated_at'])
+		        ], 'cols' => $cols];
+	        }
 
-        // hasMany hinzufügen:
-        // - die in ['foreign'] genannten Tabellen haben ein hasMany auf die akuelle Tabelle
-        foreach ($infos as $tbl => $info) {
-            foreach($info['meta']['foreign'] as $foreign) {
-                $infos[$foreign['refTbl']]['meta']['hasMany'][] = ['tbl' => ucfirst($tbl), 'fnc' => $tbl];
-                $infos[$tbl]['meta']['belongsTo'][] = ['tbl' => ucfirst($foreign['refTbl']), 'fnc' => str_singular($foreign['refTbl'])];
-            }
-        }
+	        // hasMany hinzufügen:
+	        // - die in ['foreign'] genannten Tabellen haben ein hasMany auf die akuelle Tabelle
+	        foreach ($infos as $tbl => $info) {
+		        foreach($info['meta']['foreign'] as $foreign) {
+			        $infos[$foreign['refTbl']]['meta']['hasMany'][] = ['tbl' => ucfirst($tbl), 'fnc' => $tbl];
+			        $infos[$tbl]['meta']['belongsTo'][] = ['tbl' => ucfirst($foreign['refTbl']), 'fnc' => str_singular($foreign['refTbl'])];
+		        }
+	        }
+
+	        return $infos;
+        });
 
         $this->infos = $infos;
 
@@ -102,7 +113,15 @@ class DBtoLaravelHelper {
 
         ob_start();
 
-        echo "// Table: {$infos['meta']['name']}\nSchema::create('{$infos['meta']['name']}', function (Blueprint \$table) {\n";
+        echo "<?php
+
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Migrations\Migration;
+
+";
+
+        echo "Schema::create('{$infos['meta']['name']}', function (Blueprint \$table) {\n";
 
         $morphs = $this->getMorphs($infos);
         if($morphs !== NULL) {
@@ -324,6 +343,7 @@ class DBtoLaravelHelper {
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\\{$name};
 
 class {$name}Controller extends Controller {
     /**
@@ -419,8 +439,8 @@ HERE;
 
         ob_start();
 
-        echo "Route::resource('{$infos['meta']['name']}', '$name');\n\n";
-        echo "Route::get('/', '$name@index');";
+        echo "Route::resource('{$infos['meta']['name']}', '$name');";
+        // echo "Route::get('/', '$name@index');";
 
         return ob_get_clean();
     }
@@ -480,8 +500,8 @@ use Illuminate\Database\Eloquent\Model;
         }
 
         $fillable = count($fillable) ? "\n    protected \$fillable = ['".implode("','", $fillable)."'];" : '';
-        $dates    = count($dates) ? "\n    protected \$dates = ['".implode("','", $dates)."'];" : '';
-        $casts    = strlen($casts) ? "\n    protected \$casts = [".(strlen($casts) ? substr($casts, 2) : '')."];" : '';
+        $dates    = count($dates) ? "\n    protected \$dates    = ['".implode("','", $dates)."'];" : '';
+        $casts    = strlen($casts) ? "\n    protected \$casts    = [".(strlen($casts) ? substr($casts, 2) : '')."];" : '';
 
         echo "*/
 class $name extends Model {{$uses}

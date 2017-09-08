@@ -3,18 +3,31 @@
 @section('head')
     <style>
         pre code {
-            transition: max-height 3s linear;
-            max-height: 150px;
+            transition: max-height 1s linear;
+            max-height: 220px;
             max-width: 100%;
         }
         pre > span {
             user-select: none;
+        }
+        pre {
+            margin-top: 5px;
+        }
+        span.btn {
+            background-color: silver;
+            padding: 3px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        span.btn:hover {
+            background-color: gray;
         }
     </style>
 @endsection
 
 @section('script')
     <script>
+        var currentTable;
         var req;
         var infos      = $('#infos');
         var migration  = $('#migration');
@@ -22,13 +35,14 @@
         var routes     = $('#routes');
         var controller = $('#controller');
         var model      = $('#model');
-        function toggle(ele) {
-            ele = $(ele);
-            const h = ele.next().css('max-height');
-            ele.next().css('max-height', h === '150px' ? '1000px' : '150px');
+        function toggle(id) {
+            var ele = $('#' + id);
+            const h = ele.css('max-height');
+            ele.css('max-height', h === '220px' ? ele.get(0).scrollHeight + 'px' : '220px');
         }
         function table_clicked(tbl) {
             if(req) req.abort();
+            currentTable = tbl;
             req = $.get('/dbtolaravel/{{ $connection }}/' + tbl + '/infos').done(function(data) {
                 infos.jsonViewer(data.infos);
                 migration.text(data.migration);
@@ -46,6 +60,18 @@
                     '\n\n<!-- list -->\n' + data.blades.list);
                 hljs.highlightBlock(blades.get(0));
                 req = null;
+            });
+        }
+        function writefile(key, overwrite) {
+            // /{connection}/{table}/{key}/write
+            $.get('/dbtolaravel/{{ $connection }}/' + currentTable + '/' + key + '/write' + (overwrite ? '/overwrite' : '')).done(function(data) {
+                console.log("data=%o", data);
+                if(data.error && data.key && data.key === 'file-exists') {
+                    if(confirm('File already exists. Override?')) {
+                        writefile(key, true);
+                    }
+                } else if(data.error)
+                    alert('Error: ' + data.error);
             });
         }
         hljs.initHighlightingOnLoad();
@@ -73,15 +99,36 @@
             </td>
             <td valign="top">
                 <h4>Infos 1</h4>
-                <pre><span onclick="toggle(this);">toggle migration</span><code id="migration" class="php">migration</code></pre>
-                <pre><span onclick="toggle(this);">toggle blades</span><code id="blades" class="html">blades</code></pre>
-                <pre><span onclick="toggle(this);">toggle infos</span><code id="infos" class="json">infos</code></pre>
+                <span class="btn" onclick="toggle('migration');">toggle migration</span>
+                <span class="btn" onclick="writefile('migration');">write</span>
+                <pre>
+                    <code id="migration" class="php">migration</code>
+                </pre>
+                <span class="btn" onclick="toggle('blades');">toggle blades</span>
+                <pre>
+                    <code id="blades" class="html">blades</code>
+                </pre>
+                <span class="btn" onclick="toggle('infos');">toggle infos</span>
+                <pre>
+                    <code id="infos" class="json">infos</code>
+                </pre>
             </td>
             <td valign="top">
                 <h4>Infos 2</h4>
-                <pre><span onclick="toggle(this);">toggle routes</span><code id="routes" class="php">routes</code></pre>
-                <pre><span onclick="toggle(this);">toggle controller</span><code id="controller" class="php">controller</code></pre>
-                <pre><span onclick="toggle(this);">toggle model</span><code id="model" class="php">model</code></pre>
+                <span class="btn" onclick="toggle('routes');">toggle routes</span>
+                <pre>
+                    <code id="routes" class="php">routes</code>
+                </pre>
+                <span class="btn" onclick="toggle('controller');">toggle controller</span>
+                <span class="btn" onclick="writefile('controller');">write</span>
+                <pre>
+                    <code id="controller" class="php">controller</code>
+                </pre>
+                <span class="btn" onclick="toggle('model');">toggle model</span>
+                <span class="btn" onclick="writefile('model');">write</span>
+                <pre>
+                    <code id="model" class="php">model</code>
+                </pre>
             </td>
         </tr>
     </table>
