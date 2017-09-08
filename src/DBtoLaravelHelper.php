@@ -8,6 +8,10 @@ use Doctrine\DBAL\Types\IntegerType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
+/*
+TODO Support morphs
+*/
+
 class DBtoLaravelHelper {
 
     private $tables = [];
@@ -22,57 +26,64 @@ class DBtoLaravelHelper {
         $this->connection = isset($connection) ? $connection : config('database.default');
         $this->driver     = config("database.connections.$connection")['driver'];
 
-//	    $this->infos = Cache::remember("dbtolaravel:$this->driver:infos", 5, function() {
-		    $this->manager    = DB::connection($this->connection)->getDoctrineSchemaManager();
+        $this->manager    = DB::connection($this->connection)->getDoctrineSchemaManager();
 
-		    $tables = $this->manager->listTableNames();
-		    $infos  = [];
-		    foreach($tables as $tbl) {
-			    $colsTmp = $this->manager->listTableColumns($tbl);
-			    $cols    = [];
+        $tables = $this->manager->listTableNames();
+        $infos  = [];
+        foreach($tables as $tbl) {
+            $colsTmp = $this->manager->listTableColumns($tbl);
+            $cols    = [];
 
-			    // $cols verarbeiten und $meta generieren
-			    /** @var Column $col */
-			    foreach($colsTmp as $col) {
-				    $cols[$col->getName()] = [
-					    'line'          => 'na',
-					    'matches'       => '',
-					    'type'          => $col->getType()->getName(),
-					    'len'           => $col->getLength(),
-					    'unsigned'      => $col->getUnsigned(),
-					    'null'          => !$col->getNotnull(),
-					    'autoincrement' => $col->getAutoincrement(),
-					    'default'       => $col->getDefault(),
-					    'comment'       => $col->getComment(),
-				    ];
-			    }
-
-			    $dependson = [];
-			    $foreigns  = [];
-			    $tmp       = $this->manager->listTableForeignKeys($tbl);
-			    foreach($tmp as $foreign) {
-				    /** ForeignKeyConstraint $foreign */
-				    if(!in_array($foreign->getForeignTableName(), $dependson))
-					    $dependson[] = $foreign->getForeignTableName();
-
-				    $foreigns[] = ['col' => $foreign->getLocalColumns()[0], 'refCol' => $foreign->getForeignColumns()[0], 'refTbl' => $foreign->getForeignTableName()];
-			    }
-
-                $infos[$tbl] = ['meta' => ['name' => $tbl, 'index' => $this->manager->listTableIndexes($tbl), 'foreign' => $foreigns, 'dependson' => $dependson, 'hasMany' => [], 'belongsTo' => []], 'cols' => $cols];
-		    }
-
-		    // hasMany hinzufügen:
-            // - die in ['foreign'] genannten Tabellen haben ein hasMany auf die akuelle Tabelle
-            foreach ($infos as $tbl => $info) {
-		        foreach($info['meta']['foreign'] as $foreign) {
-                    $infos[$foreign['refTbl']]['meta']['hasMany'][] = ['tbl' => ucfirst($tbl), 'fnc' => $tbl];
-                    $infos[$tbl]['meta']['belongsTo'][] = ['tbl' => ucfirst($foreign['refTbl']), 'fnc' => str_singular($foreign['refTbl'])];
-                }
+            // $cols verarbeiten und $meta generieren
+            /** @var Column $col */
+            foreach($colsTmp as $col) {
+                $cols[$col->getName()] = [
+                    'line'          => 'na',
+                    'matches'       => '',
+                    'type'          => $col->getType()->getName(),
+                    'len'           => $col->getLength(),
+                    'unsigned'      => $col->getUnsigned(),
+                    'null'          => !$col->getNotnull(),
+                    'autoincrement' => $col->getAutoincrement(),
+                    'default'       => $col->getDefault(),
+                    'comment'       => $col->getComment(),
+                ];
             }
 
-            $this->infos = $infos;
-//		    return $this->infos;
-//	    });
+            $dependson = [];
+            $foreigns  = [];
+            $tmp       = $this->manager->listTableForeignKeys($tbl);
+            foreach($tmp as $foreign) {
+                /** ForeignKeyConstraint $foreign */
+                if(!in_array($foreign->getForeignTableName(), $dependson))
+                    $dependson[] = $foreign->getForeignTableName();
+
+                $foreigns[] = ['col' => $foreign->getLocalColumns()[0], 'refCol' => $foreign->getForeignColumns()[0], 'refTbl' => $foreign->getForeignTableName()];
+            }
+
+
+            $infos[$tbl] = ['meta' => [
+                'name' => $tbl,
+                'index' => $this->manager->listTableIndexes($tbl),
+                'foreign' => $foreigns,
+                'dependson' => $dependson,
+                'hasMany' => [],
+                'belongsTo' => [],
+                'useSoftDelete' => isset($cols['deleted_at']),
+                'useTimestamps' => isset($cols['created_at']) && isset($cols['updated_at'])
+            ], 'cols' => $cols];
+        }
+
+        // hasMany hinzufügen:
+        // - die in ['foreign'] genannten Tabellen haben ein hasMany auf die akuelle Tabelle
+        foreach ($infos as $tbl => $info) {
+            foreach($info['meta']['foreign'] as $foreign) {
+                $infos[$foreign['refTbl']]['meta']['hasMany'][] = ['tbl' => ucfirst($tbl), 'fnc' => $tbl];
+                $infos[$tbl]['meta']['belongsTo'][] = ['tbl' => ucfirst($foreign['refTbl']), 'fnc' => str_singular($foreign['refTbl'])];
+            }
+        }
+
+        $this->infos = $infos;
 
 	    $this->tables = array_keys($this->infos);
     }
@@ -99,19 +110,12 @@ class DBtoLaravelHelper {
             unset($infos['cols']["{$morphs}_type"]);
         }
 
-        if($hasTimestamps = $this->hasTimestamps($infos)) {
-            unset($infos['cols']["created_at"]);
-        }
-
         foreach($infos['cols'] as $col => $info) {
             /** @var Column $info */
             $info = (object) $info;
 
-//            if($col == 'used') {
+//            if($col == 'used')
 //                dd($info);
-//            }
-
-//            print_r($info);
 
             $laravelType = strtolower($info->type);
             $colName     = "'$col'";
@@ -121,17 +125,13 @@ class DBtoLaravelHelper {
                 $extra .= '->nullable()';
             }
 
+            // Ignore some columns, they are handled elsewhere
+            if(in_array($col, ['updated_at', 'deleted_at', 'created_at']))
+                continue;
+
             if("{$morphs}_id" === $col) {
                 $laravelType = 'morphs';
                 $colName     = "'$morphs'";
-            } elseif("updated_at" === $col && $hasTimestamps) {
-                $laravelType = 'timestamps';
-                $colName     = '';
-                $extra       = '';
-            } elseif("deleted_at" === $col) {
-                $laravelType = 'softDeletes';
-                $colName     = '';
-                $extra       = '';
             } elseif($info->type === 'integer') {
 
                 $laravelType = 'integer';
@@ -185,6 +185,12 @@ class DBtoLaravelHelper {
             echo "    \$table->$laravelType($colName)$extra;\n";
         }
 
+        if($infos['meta']['useTimestamps'])
+            echo "    \$table->timestamps();\n";
+
+        if($infos['meta']['useSoftDelete'])
+            echo "    \$table->softDeletes();\n";
+
         $allForeigns = [];
         if(isset($infos['meta']['foreign']) && count($infos['meta']['foreign']) > 0) {
             foreach($infos['meta']['foreign'] as $f) {
@@ -201,32 +207,19 @@ class DBtoLaravelHelper {
             foreach($infos['meta']['index'] as $index) {
                 $cols = $index->getColumns();
                 if($index->isSimpleIndex()) {
-//                    dd("isSimpleIndex", $index);
                     echo "    \$table->index(".json_encode($cols)."); // isSimpleIndex => ".$index->getName()."\n";
                 } elseif($index->isUnique()) {
-//                    dd("isUnique", $index);
                     if(count($cols) != 1 || $cols[0] != 'id')
                         echo "    \$table->unique(".json_encode($cols)."); // isUnique => ".$index->getName()."\n";
                 } elseif($index->isPrimary()) {
-//                    dd("isPrimary", $index);
                     echo "    \$table->primary(".json_encode($cols)."); // isPrimary => ".$index->getName()."\n";
                 } else {
                     dd($index);
                 }
             }
-//            echo "    \$table->index(".json_encode(array_keys($infos['meta']['index'])).");\n";
         }
 
-//        if(count($infos['meta']['pri']) > 1) {
-//            echo "    \$table->primary(".json_encode($infos['meta']['pri'])."]);\n";
-//        }
-
         echo "});\n\n";
-
-//        if($infos['meta']['name'] === 'testcaseitemresultcomments') {
-//            print_r($infos);
-//            exit;
-//        }
 
         return ob_get_clean();
     }
@@ -370,7 +363,7 @@ HERE;
 
         {$name}::create(\$data);
 
-        return redirect(route("$table.index")); 
+        return redirect(route("$table.index"));
     }
 
     /**
@@ -440,6 +433,12 @@ HERE;
 
 	    $fillable = [];
 	    $dates    = [];
+	    $casts    = '';
+        $uses     = '';
+
+
+        if($infos['meta']['useSoftDelete'])
+            $uses = "\n    use SoftDeletes;\n";
 
 	    ob_start();
 
@@ -448,7 +447,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
-
+".($infos['meta']['useSoftDelete'] ? "use Illuminate\Database\Eloquent\SoftDeletes;\n" : '')."
 /**
  * Model $name
  *\n";
@@ -461,6 +460,9 @@ use Illuminate\Database\Eloquent\Model;
                 case 'integer':
                     echo " * @property int $colname\n";
                     break;
+                case 'decimal':
+                    echo " * @property float $colname\n";
+                    break;
                 case 'datetime':
                     echo " * @property Carbon $colname\n";
                     $dates[] = $colname;
@@ -468,6 +470,8 @@ use Illuminate\Database\Eloquent\Model;
                 case 'text':
                     echo " * @property string $colname\n";
                     break;
+                case 'boolean':
+                    $casts .= ", '$colname' => 'boolean'";
                 default:
                     echo " * @property $col->type $colname\n"; // unknown:
                     break;
@@ -475,10 +479,11 @@ use Illuminate\Database\Eloquent\Model;
         }
 
         echo "*/
-class $name extends Model {
+class $name extends Model {{$uses}
     protected \$table    = '{$infos['meta']['name']}';
     protected \$fillable = ".json_encode($fillable).";
-    protected \$dates    = ".json_encode($dates).";";
+    protected \$dates    = ".json_encode($dates).";
+    protected \$casts    = [".(strlen($casts) ? substr($casts, 2) : '')."];";
 
         // hasMany
         foreach($infos['meta']['hasMany'] as $cls) {
