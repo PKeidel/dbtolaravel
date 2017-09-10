@@ -66,9 +66,9 @@ class DBtoLaravelHelper {
 			        if(!in_array($foreign->getForeignTableName(), $dependson))
 				        $dependson[] = $foreign->getForeignTableName();
 
-			        $foreigns[] = ['col' => $foreign->getLocalColumns()[0], 'refCol' => $foreign->getForeignColumns()[0], 'refTbl' => $foreign->getForeignTableName()];
+			        $key = implode('_', $foreign->getLocalColumns())."-".implode('_', $foreign->getForeignColumns())."-".$foreign->getForeignTableName();
+			        $foreigns[$key] = ['col' => $foreign->getLocalColumns()[0], 'refCol' => $foreign->getForeignColumns()[0], 'refTbl' => $foreign->getForeignTableName()];
 		        }
-
 
 		        $infos[$tbl] = ['meta' => [
 			        'name' => $tbl,
@@ -99,6 +99,14 @@ class DBtoLaravelHelper {
 	    $this->tables = array_keys($this->infos);
     }
 
+	public function genClassName($table) {
+		return ucfirst(camel_case($table));
+    }
+
+	private function genMigrationClassName($table) {
+		return "Create".$this->genClassName($table)."Table";
+    }
+
     public function getInfos($table = NULL) {
         return isset($table) ? $this->infos[$table] : $this->infos;
     }
@@ -121,7 +129,16 @@ use Illuminate\Database\Migrations\Migration;
 
 ";
 
-        echo "Schema::create('{$infos['meta']['name']}', function (Blueprint \$table) {\n";
+        echo "class ".$this->genMigrationClassName($table)." extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::create('{$infos['meta']['name']}', function (Blueprint \$table) {\n";
 
         $morphs = $this->getMorphs($infos);
         if($morphs !== NULL) {
@@ -170,14 +187,16 @@ use Illuminate\Database\Migrations\Migration;
             } elseif($info->type === 'bigint') {
 
                 $laravelType = 'bigInteger';
-                if($info->len != 20)
+                if($info->unsigned)
+                    $extra .= '->unsigned()';
+                if(!empty($info->len) && $info->len != 20)
                     $colName = "'$col', $info->len";
 
                 if($info->autoincrement)
                     $laravelType = 'bigIncrements';
 
             } elseif($info->type === 'string') {
-                if($info->len != 255)
+                if(!empty($info->len) && $info->len != 255)
                     $colName = "'$col', $info->len";
             } elseif($info->type === 'longtext') {
                 $laravelType = 'longText';
@@ -199,21 +218,27 @@ use Illuminate\Database\Migrations\Migration;
             }
 
             if(!empty($info->comment))
-                $extra .= "->comment('$info->comment')";
+                $extra .= "->comment('".addslashes($info->comment)."')";
 
-            echo "    \$table->$laravelType($colName)$extra;\n";
+            echo "            \$table->$laravelType($colName)$extra;\n";
         }
 
         if($infos['meta']['useTimestamps'])
-            echo "    \$table->timestamps();\n";
+            echo "            \$table->timestamps();\n";
 
         if($infos['meta']['useSoftDelete'])
-            echo "    \$table->softDeletes();\n";
+            echo "            \$table->softDeletes();\n";
 
         $allForeigns = [];
         if(isset($infos['meta']['foreign']) && count($infos['meta']['foreign']) > 0) {
             foreach($infos['meta']['foreign'] as $f) {
-                echo "    \$table->foreign('{$f['col']}')->references('{$f['refCol']}')->on('{$f['refTbl']}');\n";
+            	// TODO detect max length and cut beginning of
+	            $alias = '';
+//	            $indexname = $table.'_'.$f['col'].'_foreign';
+//        	    $maxlen = 40;
+//	            if(strlen($indexname) > $maxlen)
+//		            $alias = ", 's".rand(10, 99).'_'.substr($indexname, 0 - $maxlen)."'";
+                echo "            \$table->foreign('{$f['col']}'$alias)->references('{$f['refCol']}')->on('{$f['refTbl']}');\n";
                 $allForeigns[] = $f['col'];
                 $ret = array_search($f['col'], $infos['meta']['index'])."\n";
                 if($ret !== FALSE) {
@@ -225,20 +250,23 @@ use Illuminate\Database\Migrations\Migration;
         if(isset($infos['meta']['index']) && count($infos['meta']['index']) > 0) {
             foreach($infos['meta']['index'] as $index) {
                 $cols = $index->getColumns();
-                if($index->isSimpleIndex()) {
-                    echo "    \$table->index(".json_encode($cols)."); // isSimpleIndex => ".$index->getName()."\n";
+
+	            if($index->isPrimary() && count($cols) == 1 && !$infos['cols'][$cols[0]]['autoincrement']) {
+		            echo "            \$table->primary(".json_encode($cols)."); // isPrimary => ".$index->getName()."\n";
+	            } elseif($index->isSimpleIndex()) {
+                    echo "            \$table->index(".json_encode($cols)."); // isSimpleIndex => ".$index->getName()."\n";
                 } elseif($index->isUnique()) {
                     if(count($cols) != 1 || $cols[0] != 'id')
-                        echo "    \$table->unique(".json_encode($cols)."); // isUnique => ".$index->getName()."\n";
-                } elseif($index->isPrimary()) {
-                    echo "    \$table->primary(".json_encode($cols)."); // isPrimary => ".$index->getName()."\n";
+                        echo "            \$table->unique(".json_encode($cols)."); // isUnique => ".$index->getName()."\n";
                 } else {
                     dd($index);
                 }
             }
         }
 
-        echo "});\n\n";
+        echo "        });
+    }
+}";
 
         return ob_get_clean();
     }
@@ -304,6 +332,7 @@ use Illuminate\Database\Migrations\Migration;
         $infos = $this->infos[$table];
 
         $tbl = $infos['meta']['name'];
+        $tblSing = str_singular($tbl);
 
         $letter = substr($tbl, 0, 1);
 
@@ -313,6 +342,7 @@ use Illuminate\Database\Migrations\Migration;
         foreach($infos['cols'] as $col => $info) {
             echo "  <td>{{ __('$col') }}</td>\n";
         }
+	    echo "  <td>View</td>\n";
         echo "</tr>\n";
         echo "@foreach(\$$tbl as \$$letter)\n";
         echo "  <tr>\n";
@@ -323,6 +353,7 @@ use Illuminate\Database\Migrations\Migration;
                 echo "  <td>{{ \$$letter->$col }}</td>\n";
             }
         }
+	    echo "  <td><a href=\"{{ route('$tbl.show', ['$tblSing' => \${$letter}->id]) }}\">View</a></td>\n";
         echo "  </tr>\n";
         echo "@endforeach\n";
         echo "</table>\n";
@@ -332,8 +363,9 @@ use Illuminate\Database\Migrations\Migration;
     public function genController($table) {
 
         $infos = $this->infos[$table];
+        $tableSing = str_singular($table);
 
-        $name  = ucfirst($infos['meta']['name']);
+        $name  = $this->genClassName($table);
 
         ob_start();
 
@@ -352,7 +384,7 @@ class {$name}Controller extends Controller {
      * @return \Illuminate\Http\Response
      */
     public function index() {
-        return view("$table.list");
+        return view("$table.list", ['$table' => {$name}::all()]);
     }
 
     /**
@@ -389,21 +421,21 @@ HERE;
     /**
      * Display the specified resource.
      *
-     * @param  $name \$$table
+     * @param  $name \$$tableSing
      * @return \Illuminate\Http\Response
      */
-    public function show($name \$$table) {
-        return view("$table.view", ["$table" => \$$table]);
+    public function show($name \$$tableSing) {
+        return view("$table.view", ["$table" => \$$tableSing]);
     }
 
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  $name \$$table
+     * @param  $name \$$tableSing
      * @return \Illuminate\Http\Response
      */
-    public function edit($name \$$table) {
-        return view("$table.edit", ["$table" => \$$table]);
+    public function edit($name \$$tableSing) {
+        return view("$table.edit", ["$table" => \$$tableSing]);
     }
 
     /**
@@ -418,12 +450,12 @@ HERE;
     /**
      * Remove the specified resource from storage.
      *
-     * @param  $name \$$table
+     * @param  $name \$$tableSing
      * @return \Illuminate\Http\Response
      */
-    public function destroy($name \$$table) {
-        \${$table}->delete();
-        return view("$table.list");
+    public function destroy($name \$$tableSing) {
+        \${$tableSing}->delete();
+        return redirect(route("$table.index"));
     }
 }
 HERE;
@@ -435,7 +467,7 @@ HERE;
 
         $infos = $this->infos[$table];
 
-        $name  = ucfirst($infos['meta']['name']).'Controller';
+        $name  = $this->genClassName($infos['meta']['name']).'Controller';
 
         ob_start();
 
@@ -449,7 +481,7 @@ HERE;
 
 	    $infos = $this->infos[$table];
 
-	    $name  = ucfirst($infos['meta']['name']);
+	    $name  = $this->genClassName($infos['meta']['name']);
 
 	    $fillable = [];
 	    $dates    = [];
@@ -467,6 +499,7 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Collection;
 ".($infos['meta']['useSoftDelete'] ? "use Illuminate\Database\Eloquent\SoftDeletes;\n" : '')."
 /**
  * Model $name
@@ -499,6 +532,18 @@ use Illuminate\Database\Eloquent\Model;
             }
         }
 
+	    // hasMany
+	    foreach($infos['meta']['hasMany'] as $cls) {
+		    $tbl = $this->genClassName($cls['tbl']);
+		    echo " * @property-read Collection ".camel_case($cls['fnc'])." // <\App\Models\\$tbl>\n";
+	    }
+
+	    // belongsTo
+	    foreach($infos['meta']['belongsTo'] as $cls) {
+		    $tbl = $this->genClassName($cls['tbl']);
+		    echo " * @property-read \App\Models\\$tbl ".camel_case($cls['fnc'])."\n";
+	    }
+
         $fillable = count($fillable) ? "\n    protected \$fillable = ['".implode("','", $fillable)."'];" : '';
         $dates    = count($dates) ? "\n    protected \$dates    = ['".implode("','", $dates)."'];" : '';
         $casts    = strlen($casts) ? "\n    protected \$casts    = [".(strlen($casts) ? substr($casts, 2) : '')."];" : '';
@@ -509,16 +554,16 @@ class $name extends Model {{$uses}
 
         // hasMany
         foreach($infos['meta']['hasMany'] as $cls) {
-            $tbl = $cls['tbl'];
-            echo "\n\n    public function {$cls['fnc']}() {
+            $tbl = $this->genClassName($cls['tbl']);
+            echo "\n\n    public function ".camel_case($cls['fnc'])."() {
        return \$this->hasMany('App\Models\\$tbl');
     }\n";
         }
 
         // belongsTo
         foreach($infos['meta']['belongsTo'] as $cls) {
-            $tbl = $cls['tbl'];
-            echo "\n\n    public function {$cls['fnc']}() {
+	        $tbl = $this->genClassName($cls['tbl']);
+            echo "\n\n    public function ".camel_case($cls['fnc'])."() {
        return \$this->belongsTo('App\Models\\$tbl');
     }\n";
         }

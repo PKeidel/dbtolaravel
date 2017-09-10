@@ -43,7 +43,17 @@ class DBtoLaravelController extends Controller {
         /** @var DBtoLaravelHelper $helper */
         $helper = app()->makeWith(\PKeidel\DBtoLaravel\DBtoLaravelHelper::class, ['connection' => $connection]);
         return [
-            'infos' => $helper->getInfos($table),
+            'infos' => [
+	            'schema' => $helper->getInfos($table),
+	            'files' => [
+		            'migration' => database_path("migrations/".date('Y_m_d_His')."_create_{$table}_table.php"),
+		            'controller' => app_path("Http/Controllers/".$helper->genClassName($table)."Controller.php"),
+		            'model' => app_path("Models/".$helper->genClassName($table).".php"),
+	                'blades:list' => resource_path("views/$table/list.blade.php"),
+	                'blades:view' => resource_path("views/$table/view.blade.php"),
+	                'blades:edit' => resource_path("views/$table/edit.blade.php")
+	            ]
+            ],
             'migration' => $helper->genMigration($table),
             'routes' => $helper->genRoutes($table),
             'controller' => $helper->genController($table),
@@ -56,30 +66,24 @@ class DBtoLaravelController extends Controller {
         ];
     }
 
+    // PUT
 	public function writeToFile($connection, $table, $key, $overwrite = FALSE) {
 		$infos   = $this->getInfos($connection, $table);
 
-		if(!isset($infos[$key]))
+		$cat = $key;
+		if(strpos($key, ':') !== FALSE) {
+			$cat = explode(':', $key)[0];
+		}
+
+		if(!isset($infos[$cat]))
 			return ['error' => "Key $key not found"];
 
-		$content = $infos[$key];
+		$content = !empty($subkey) ? $infos[$key][$subkey] : $infos[$key];
 
-		$file = '/tmp';
+		$file = request()->get('file') ?? $infos['files'][$key];
 
-		switch($key) {
-			case 'migration':
-				$file  = date('Y_m_d_His')."_create_{$table}_table.php";
-				$file = database_path("migrations/$file");
-				break;
-			case 'controller':
-				$file  = ucfirst($table).'Controller';
-				$file = app_path("Http/Controllers/$file.php");
-				break;
-			case 'model':
-				$file  = ucfirst($table);
-				$file = app_path("Models/$file.php");
-				break;
-		}
+		if($file == '-')
+			return ['error' => "No valid filename could be generated", 'key' => 'file-invalid'];
 
 		if($overwrite === FALSE && file_exists($file))
 			return ['error' => "File $file already exists", 'key' => 'file-exists'];

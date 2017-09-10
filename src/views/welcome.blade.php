@@ -27,7 +27,7 @@
 
 @section('script')
     <script>
-        var currentTable;
+        var currentTable, files;
         var req;
         var infos      = $('#infos');
         var migration  = $('#migration');
@@ -44,6 +44,7 @@
             if(req) req.abort();
             currentTable = tbl;
             req = $.get('/dbtolaravel/{{ $connection }}/' + tbl + '/infos').done(function(data) {
+                files = data.infos.files;
                 infos.jsonViewer(data.infos);
                 migration.text(data.migration);
                 routes.text(data.routes);
@@ -55,17 +56,20 @@
                 hljs.highlightBlock(controller.get(0));
                 hljs.highlightBlock(model.get(0));
 
-                blades.text('<!-- view -->\n' + data.blades.view +
-                    '\n\n<!-- edit -->\n' + data.blades.edit +
-                    '\n\n<!-- list -->\n' + data.blades.list);
+                blades.text('<!-- view.blade.php -->\n' + data.blades.view +
+                    '\n\n<!-- edit.blade.php -->\n' + data.blades.edit +
+                    '\n\n<!-- list.blade.php -->\n' + data.blades.list);
                 hljs.highlightBlock(blades.get(0));
                 req = null;
             });
         }
         function writefile(key, overwrite) {
             // /{connection}/{table}/{key}/write
-            $.get('/dbtolaravel/{{ $connection }}/' + currentTable + '/' + key + '/write' + (overwrite ? '/overwrite' : '')).done(function(data) {
-                console.log("data=%o", data);
+            $.ajax({
+                url: '/dbtolaravel/{{ $connection }}/' + currentTable + '/' + key + '/write' + (overwrite ? '/overwrite' : ''),
+                data: {file: files[key]},
+                method: 'PUT'
+            }).done(function(data) {
                 if(data.error && data.key && data.key === 'file-exists') {
                     if(confirm('File already exists. Override?')) {
                         writefile(key, true);
@@ -105,6 +109,9 @@
                     <code id="migration" class="php">migration</code>
                 </pre>
                 <span class="btn" onclick="toggle('blades');">toggle blades</span>
+                <span class="btn" onclick="writefile('blades:view');">write:view</span>
+                <span class="btn" onclick="writefile('blades:edit');">write:edit</span>
+                <span class="btn" onclick="writefile('blades:list');">write:list</span>
                 <pre>
                     <code id="blades" class="html">blades</code>
                 </pre>
