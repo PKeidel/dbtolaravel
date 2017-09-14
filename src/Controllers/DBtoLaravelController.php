@@ -66,6 +66,13 @@ class DBtoLaravelController extends Controller {
         ];
     }
 
+    public function getAllInfos($connection) {
+        /** @var DBtoLaravelHelper $helper */
+        $helper = app()->makeWith(\PKeidel\DBtoLaravel\DBtoLaravelHelper::class, ['connection' => $connection]);
+		// return array_pluck($helper->getInfos(), ['meta']);
+	    return $helper->getInfos();
+    }
+
     // PUT
 	public function writeToFile($connection, $table, $key, $overwrite = FALSE) {
 		$infos   = $this->getInfos($connection, $table);

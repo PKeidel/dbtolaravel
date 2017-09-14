@@ -15,6 +15,7 @@
         integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
 <script src="https://gitcdn.xyz/repo/abodelot/jquery.json-viewer/master/json-viewer/jquery.json-viewer.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+<script src="https://unpkg.com/mermaid@7.0.5/dist/mermaid.js"></script>
 @yield('script')
 </body>
 </html>
