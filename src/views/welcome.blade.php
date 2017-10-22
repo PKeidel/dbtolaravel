@@ -164,11 +164,19 @@
         <tr>
             <td valign="top" width="200px">
                 <h4>Tables</h4>
-                @foreach($tables as $table)
-                    <li onclick="table_clicked('{{ $table }}');">{{ $table }}</li>
-                @endforeach
+                <ul>
+                    @foreach($tables as $table => $islink)
+                        <li onclick="table_clicked('{{ $table }}');">
+                            @if($islink)
+                                <span style="color:silver;">{{ $table }}</span>
+                            @else
+                                {{ $table }}
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
             </td>
-            <td valign="top">
+            <td valign="top" style="max-width: 700px;">
                 <h4>Infos 1</h4>
                 <span class="btn" onclick="toggle('migration');">toggle migration</span>
                 <span class="btn" onclick="writefile('migration');">write</span>

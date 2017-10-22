@@ -32,8 +32,15 @@ class DBtoLaravelController extends Controller {
 
         /** @var DBtoLaravelHelper $helper */
         $helper = app()->makeWith(\PKeidel\DBtoLaravel\DBtoLaravelHelper::class, ['connection' => $connection]);
+//        $infos  = array_map(function($i) {
+//        	return $i['meta']['islinktable'];
+//        }, $helper->getInfos());
+        $infos = [];
+        foreach($helper->getInfos() as $info)
+        	$infos[$info['meta']['name']] = $info['meta']['islinktable'];
+
         return view('dbtolaravel::welcome', [
-            'tables' => $helper->getTables(),
+            'tables' => $infos,
             'connections' => array_keys(config('database.connections')),
             'connection' => $connection
         ]);
@@ -69,7 +76,6 @@ class DBtoLaravelController extends Controller {
     public function getAllInfos($connection) {
         /** @var DBtoLaravelHelper $helper */
         $helper = app()->makeWith(\PKeidel\DBtoLaravel\DBtoLaravelHelper::class, ['connection' => $connection]);
-		// return array_pluck($helper->getInfos(), ['meta']);
 	    return $helper->getInfos();
     }
 
@@ -79,13 +85,14 @@ class DBtoLaravelController extends Controller {
 
 		$cat = $key;
 		if(strpos($key, ':') !== FALSE) {
-			$cat = explode(':', $key)[0];
+			$cat    = explode(':', $key)[0];
+			$subkey = explode(':', $key)[1];
 		}
 
 		if(!isset($infos[$cat]))
-			return ['error' => "Key $key not found"];
+			return ['error' => "Subkey $cat not found"];
 
-		$content = !empty($subkey) ? $infos[$key][$subkey] : $infos[$key];
+		$content = !empty($subkey) ? $infos[$cat][$subkey] : $infos[$key];
 
 		$file = request()->get('file') ?? $infos['files'][$key];
 
@@ -94,6 +101,10 @@ class DBtoLaravelController extends Controller {
 
 		if($overwrite === FALSE && file_exists($file))
 			return ['error' => "File $file already exists", 'key' => 'file-exists'];
+
+		$dir = dirname($file);
+		if(!file_exists($dir))
+			mkdir($dir);
 
 		return ['error' => file_put_contents($file, $content) === FALSE];
     }
