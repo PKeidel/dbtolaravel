@@ -7,6 +7,7 @@
 ```shell
 composer require pkeidel/dbtolaravel
 ```
+DB2Laravel is just active if `APP_DEBUG=true` or `DBTOLARAVEL_ENABLED=true`
 
 ### < Laravel 5.5
 As always, add it to your app/config.php:

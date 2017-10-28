@@ -318,8 +318,9 @@ use Illuminate\Database\Migrations\Migration;
 
         echo "@if(isset(\$$tbl))
     <form action=\"{{ route('$tbl.update', \$${tbl}->id) }}\" method=\"POST\">
+        <input type=\"hidden\" name=\"_method\" value=\"PUT\" />
 @else
-    <form action=\"{{ route('$tbl.store') }}\" method=\"PUT\">
+    <form action=\"{{ route('$tbl.store') }}\" method=\"POST\">
 @endif
 {!! csrf_field() !!}\n";
         echo "<table class=\"table\">\n";

@@ -110,18 +110,29 @@
         function showDBInfos() {
             const mermaidDiv = document.querySelector("#mermaid");
             mermaidDiv.textContent = 'please wait...';
-            $.get('/dbtolaravel/{{ $connection }}/infos', function(data) {
+            $.get('/dbtolaravel/{{ $connection }}/infos', function (data) {
                 var tables = Object.keys(data), str = 'graph LR; ';
-//                console.log("tables=%o", tables);
+                // console.log("tables=%o", tables);
+
+                let tbl = null;
                 for(var i = 0; i < tables.length; i++) {
-//                    console.log("%s => %s", tables[i], data[tables[i]].meta.dependson);
-                    const depon = data[tables[i]].meta.dependson;
-                    if (depon.length) {
-                        for(var j = 0; j < depon.length; j++) {
-                            str += tables[i] + ' --> ' + depon[j] + '; ';
-                        }
-                    } else {
-                        str += tables[i] + '; ';
+                    tbl = tables[i];
+
+                    const meta = data[tables[i]].meta;
+                    if(meta.islinktable)
+                        continue;
+
+                    console.log("meta for %s => %o", tbl, meta);
+
+                    str += meta.name + '; ';
+                    for(let m in meta.hasOneOrMany) {
+                        str += tbl + ' --> |hasOneOrMany| ' + meta.hasOneOrMany[m].tbl + '; ';
+                    }
+                    for(let m in meta.belongsTo) {
+                        str += tbl + ' --> |belongsTo| ' + meta.belongsTo[m].tbl + '; ';
+                    }
+                    for(let m in meta.belongsToMany) {
+                        str += tbl + ' --> |belongsToMany| ' + meta.belongsToMany[m].tbl + '; ';
                     }
                 }
 
