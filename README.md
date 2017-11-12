@@ -1,5 +1,6 @@
 # README #
 
+<img src="http://forthebadge.com/images/badges/makes-people-smile.svg" height="20px" />
 <a href="https://travis-ci.org/PKeidel/dbtolaravel"><img src="https://travis-ci.org/PKeidel/dbtolaravel.svg" alt="Build Status"></a>
 
 ## Install

@@ -486,14 +486,19 @@ HERE;
     }
 
     /**
-     * PUT|PATCH /$table/\{$tableSing}
+     * PUT|PATCH /$table/{$tableSing}
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  \$request
-     * @param  int  \$id
+     * @param  $name \$$tableSing
      * @return \Illuminate\Http\Response
      */
-    public function update(Request \$request, \$id) {}
+    public function update(Request \$request, $name \$$tableSing) {
+        \$newData = \$request->except(['_method', '_token', 'id']);
+        \${$tableSing}->fill(\$newData);
+        \${$tableSing}->save();
+        return redirect(route("$table.show", [\${$tableSing}->id]));
+    }
 
     /**
      * DELETE /$table/\{$tableSing}
