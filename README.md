@@ -1,5 +1,6 @@
 # README #
 
+<img src="http://forthebadge.com/images/badges/makes-people-smile.svg" height="20px" />
 <a href="https://travis-ci.org/PKeidel/dbtolaravel"><img src="https://travis-ci.org/PKeidel/dbtolaravel.svg" alt="Build Status"></a>
 
 ## Install
@@ -9,6 +10,7 @@
 ```shell
 composer require pkeidel/dbtolaravel
 ```
+DB2Laravel is just active if `APP_DEBUG=true` or `DBTOLARAVEL_ENABLED=true`
 
 ### < Laravel 5.5
 As always, add it to your app/config.php:

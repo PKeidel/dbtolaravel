@@ -11,6 +11,10 @@ class DBtoLaravelServiceProvider extends ServiceProvider {
      * @return void
      */
     public function boot() {
+
+        if(!env('APP_DEBUG', false) && !env('DBTOLARAVEL_ENABLED', false))
+            return;
+
 //        $this->publishes([
 //            __DIR__.'/path/to/config/dbtolaravel.php' => config_path('dbtolaravel.php'),
 //        ]);
