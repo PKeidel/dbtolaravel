@@ -8,6 +8,7 @@ use Doctrine\DBAL\Types\IntegerType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\MySqlConnection;
+use Illuminate\Support\Facades\Log;
 
 /*
 TODO Support morphs
@@ -22,13 +23,15 @@ class DBtoLaravelHelper {
     /** @var  AbstractSchemaManager $manager */
     private $manager;
 
+    public static $FILTER = NULL;
+
     public function __construct($connection = NULL) {
         $this->connection = !empty($connection) ? $connection : config('database.default');
         $this->driver     = config("database.connections.$connection")['driver'];
 
-//	    Cache::forget("dbtolaravel:tables:$connection");
+        Log::info("Collecting data for DBtoLaravelHelper()...");
 
-        $infos = Cache::remember("dbtolaravel:tables:$connection", 15, function() {
+        $infos = Cache::remember("dbtolaravel:tables:1:$connection", 1, function() {
 	        /** @var MySqlConnection $con */
 	        $con = DB::connection($this->connection);
 
@@ -42,6 +45,9 @@ class DBtoLaravelHelper {
 	        $tables = $this->manager->listTableNames();
 	        $infos  = [];
 	        foreach($tables as $tbl) {
+
+
+
 		        $colsTmp       = $this->manager->listTableColumns($tbl);
 		        $cols          = [];
 		        $dependson     = [];
@@ -142,7 +148,7 @@ class DBtoLaravelHelper {
 
 	        return $infos;
         });
-	    $this->infos = $infos;
+	    $this->infos = self::$FILTER === NULL ? $infos : array_filter($infos, self::$FILTER, ARRAY_FILTER_USE_KEY);
     }
 
 	public function genClassName($table) {
@@ -155,6 +161,66 @@ class DBtoLaravelHelper {
 
     public function getInfos($table = NULL) {
         return isset($table) ? $this->infos[$table] : $this->infos;
+    }
+
+    public function getArrayAll($withContent = false) {
+        $ret = [];
+        foreach($this->infos as $tbl => $obj)
+            $ret[$tbl] = $this->getArrayForTable($tbl, $withContent);
+        return $ret;
+    }
+
+    public function getArrayForTable($table, $withContent = false) {
+        $diff = new \cogpowered\FineDiff\Diff;
+
+        $test = function($key, $tbl) use($diff, $withContent) {
+            $fn = "gen".ucfirst($key);
+            $path = 'na';
+            switch($key) {
+                case 'migration':
+                    $path = database_path("migrations/".date('Y_m_d_His')."_create_{$tbl}_table.php");
+                    break;
+                case 'routes':
+                    $path = "web.php";
+                    break;
+                case 'controller':
+                    $path = app_path("Http/Controllers/".$this->genClassName($tbl)."Controller.php");
+                    break;
+                case 'model':
+                    $path = app_path("Models/".$this->genClassName($tbl).".php");
+                    break;
+                case 'view':
+                    $path = resource_path("views/{$tbl}/view.blade.php");
+                    break;
+                case 'edit':
+                    $path = resource_path("views/{$tbl}/edit.blade.php");
+                    break;
+                case 'list':
+                    $path = resource_path("views/{$tbl}/list.blade.php");
+                    break;
+            }
+            $content = $this->$fn($tbl);
+            return [
+                $key => [
+                    'path' => $path,
+                    'exists' => $exists = file_exists($path),
+                    'content' => $withContent ? $content : false,
+                    'diff' => file_exists($path) ? $diff->render(file_get_contents($path), $content) : false,
+                    'different' => file_exists($path) ? (file_get_contents($path) !== $content) : false,
+                ]
+            ];
+        };
+
+        return [
+            'schema' => $this->getInfos($table),
+        ]
+            + $test('migration', $table)
+            + $test('routes', $table)
+            + $test('controller', $table)
+            + $test('model', $table)
+            + $test('view', $table)
+            + $test('edit', $table)
+            + $test('list', $table);
     }
 
     public function genMigration($table) {
@@ -311,7 +377,7 @@ use Illuminate\Database\Migrations\Migration;
         return ob_get_clean();
     }
 
-    public function genBladeEdit($table) {
+    public function genEdit($table) {
         $infos = $this->infos[$table];
         $tbl = $infos['meta']['name'];
         ob_start();
@@ -350,7 +416,7 @@ use Illuminate\Database\Migrations\Migration;
         return ob_get_clean();
     }
 
-    public function genBladeView($table) {
+    public function genView($table) {
         $infos = $this->infos[$table];
         $tbl = $infos['meta']['name'];
         ob_start();
@@ -366,7 +432,7 @@ use Illuminate\Database\Migrations\Migration;
         return ob_get_clean();
     }
 
-    public function getBladeList($table) {
+    public function genList($table) {
         $infos = $this->infos[$table];
         $tbl = $infos['meta']['name'];
         $tblSing = str_singular($tbl);

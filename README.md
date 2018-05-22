@@ -27,6 +27,15 @@ As always, add it to your app/config.php:
 // get you a coffee, you're done
 ```
 
+## Settings
+### Filter Tables
+Register a filter in your `AppServiceProvider.php`:
+```php
+DBtoLaravelHelper::$FILTER = function($table) {
+    return strpos($table, 'eyewitness_io_') !== 0 && strpos($table, 'oauth_') !== 0;
+};
+```
+
 
 ## License
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel?ref=badge_large)
