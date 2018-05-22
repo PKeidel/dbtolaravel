@@ -33,6 +33,7 @@
             modalBody.children().remove();
 
             $.get(`{{ $connection }}/render/${table}/${type}`, (data) => {
+                window.lastData = data;
                 modalBtn.on('click', () => {
                     writefile(table, type);
                 }).prop('disabled', false);
@@ -51,8 +52,9 @@
             modalBody.children().remove();
 
             $.get(`{{ $connection }}/render/${table}/${type}/diff`, (data) => {
+                window.lastData = data;
                 modalBtn.on('click', () => {
-                    writefile(table, type);
+                    writefile(table, type, window.lastData.content);
                 }).prop('disabled', false);
                 let code = $('<div></div>');
                 code.css('border', '1px solid silver').css('border-radius', '5px').css('padding', '5px').css('font-family', 'monospace');
@@ -66,12 +68,12 @@
                 modal.modal({show:true});
             });
         }
-        function writefile(table, type, overwrite) {
+        function writefile(table, type, content, overwrite) {
             $.ajax({
                 url: 'write',
                 data: {
                     file: infos[table][type].path,
-                    content: modalBody.find('pre').text(),
+                    content: content || modalBody.find('pre').text(),
                     overwrite: !!overwrite
                 },
                 method: 'PUT'
@@ -88,6 +90,7 @@
                     $(`#btn_${table}_${type}`).removeClass('text-info').addClass('text-success').prop('disabled', true).append('<i class="fas fa-check"></i>');
                     modal.modal('hide');
                 }
+                window.lastData = null;
             });
         }
     </script>
