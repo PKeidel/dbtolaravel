@@ -68,7 +68,7 @@ class PhpFileBuilder {
 		}
 
 
-		$content .= "}";
+		$content .= "}\n";
 
 		return $content;
 	}

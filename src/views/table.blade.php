@@ -10,9 +10,11 @@
         }
         del {
             color: red !important;
+            border: 1px solid red;
         }
         ins {
             color: green !important;
+            border: 1px solid green;
         }
     </style>
 @endsection

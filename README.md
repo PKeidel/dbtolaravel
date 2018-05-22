@@ -28,6 +28,9 @@ As always, add it to your app/config.php:
 ```
 
 ## Settings
+### .env file
+DBtoLaravel is enabled if `APP_DEBUG=true` or `DBTOLARAVEL_ENABLED=true` 
+
 ### Filter Tables
 Register a filter in your `AppServiceProvider.php`:
 ```php

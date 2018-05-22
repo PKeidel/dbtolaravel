@@ -22,6 +22,7 @@ class DBtoLaravelHelper {
     private $driver;
     /** @var  AbstractSchemaManager $manager */
     private $manager;
+    private $arrayCache = [];
 
     public static $FILTER = NULL;
 
@@ -29,9 +30,7 @@ class DBtoLaravelHelper {
         $this->connection = !empty($connection) ? $connection : config('database.default');
         $this->driver     = config("database.connections.$connection")['driver'];
 
-        Log::info("Collecting data for DBtoLaravelHelper()...");
-
-        $infos = Cache::remember("dbtolaravel:tables:1:$connection", 1, function() {
+        $infos = Cache::remember("dbtolaravel:tables:1:$connection", 10, function() {
 	        /** @var MySqlConnection $con */
 	        $con = DB::connection($this->connection);
 
@@ -171,7 +170,11 @@ class DBtoLaravelHelper {
     }
 
     public function getArrayForTable($table, $withContent = false) {
-        $diff = new \cogpowered\FineDiff\Diff;
+
+        if(!empty($this->arrayCache[$table."-".($withContent ? 'yes' : 'no')]))
+            return $this->arrayCache[$table."-".($withContent ? 'yes' : 'no')];
+
+        $diff = new \cogpowered\FineDiff\Diff();
 
         $test = function($key, $tbl) use($diff, $withContent) {
             $fn = "gen".ucfirst($key);
@@ -205,22 +208,22 @@ class DBtoLaravelHelper {
                     'path' => $path,
                     'exists' => $exists = file_exists($path),
                     'content' => $withContent ? $content : false,
-                    'diff' => file_exists($path) ? $diff->render(file_get_contents($path), $content) : false,
+                    'diff' => $withContent && file_exists($path) ? $diff->render(file_get_contents($path), $content) : false,
                     'different' => file_exists($path) ? (file_get_contents($path) !== $content) : false,
                 ]
             ];
         };
 
-        return [
-            'schema' => $this->getInfos($table),
-        ]
-            + $test('migration', $table)
-            + $test('routes', $table)
-            + $test('controller', $table)
-            + $test('model', $table)
-            + $test('view', $table)
-            + $test('edit', $table)
-            + $test('list', $table);
+        return $this->arrayCache[$table."-".($withContent ? 'yes' : 'no')] = [
+             'schema' => $this->getInfos($table),
+         ]
+         + $test('migration', $table)
+         + $test('routes', $table)
+         + $test('controller', $table)
+         + $test('model', $table)
+         + $test('view', $table)
+         + $test('edit', $table)
+         + $test('list', $table);
     }
 
     public function genMigration($table) {
@@ -657,11 +660,11 @@ HERE;
 	    // belongsTo
 	    foreach($infos['meta']['belongsTo'] as $info) {
 		    $cls = $info['cls'];
-		    $phpfile->doc[] = "@property-read \App\Models\\$cls {$info['tbl']} // from belongsTo";
+		    $phpfile->doc[] = "@property-read \App\Models\\$cls ".str_singular($info['tbl'])." // from belongsTo";
 
 		    $phpfile->functions[] = [
 		    	'visibility' => 'public',
-		    	'name' => $info['tbl'],
+		    	'name' => str_singular($info['tbl']),
 		    	'body' => "return \$this->belongsTo('App\Models\\$cls');"
 		    ];
 	    }
@@ -703,105 +706,7 @@ HERE;
 	    if(strlen($casts))
 		    $phpfile->vars[] = "protected \$casts    = [".(strlen($casts) ? substr($casts, 2) : '')."]";
 
-
 	    return $phpfile->__toString();
-
-//	    $fillable = [];
-//	    $dates    = [];
-//	    $casts    = '';
-//        $uses     = '';
-//
-//
-//        if($infos['meta']['useSoftDelete'])
-//            $uses = "\n    use SoftDeletes;\n";
-//
-//	    ob_start();
-//
-//    	echo "<?php
-//namespace App\Models;
-//
-//use Carbon\Carbon;
-//use Illuminate\Database\Eloquent\Model;
-//use Illuminate\Database\Eloquent\Collection;
-//".($infos['meta']['useSoftDelete'] ? "use Illuminate\Database\Eloquent\SoftDeletes;\n" : '')."
-///**
-// * Model $name
-// *\n";
-//
-//        foreach ($infos['cols'] as $colname => $col) {
-//            $col = (object) $col;
-//            if(!in_array($colname, ['id', 'created_at', 'updated_at', 'deleted_at']))
-//                $fillable[] = $colname;
-//            $nullable = !empty($col->null) ? '|null' : '';
-//            switch($col->type) {
-//                case 'integer':
-//                case 'bigint':
-//                    echo " * @property int$nullable $colname\n";
-//                    break;
-//                case 'decimal':
-//                    echo " * @property float$nullable $colname\n";
-//                    break;
-//                case 'datetime':
-//                    echo " * @property Carbon$nullable $colname\n";
-//                    $dates[] = $colname;
-//                    break;
-//                case 'text':
-//                    echo " * @property string$nullable $colname\n";
-//                    break;
-//                case 'boolean':
-//                    $casts .= ", '$colname' => 'boolean'";
-//                    // NO break! So that the @property is generated
-//                default:
-//                    echo " * @property $col->type$nullable $colname\n"; // unknown:
-//                    break;
-//            }
-//        }
-//
-//	    // hasMany
-//	    foreach($infos['meta']['hasMany'] as $cls) {
-//		    $tbl = $this->genClassName($cls['tbl']);
-//		    echo " * @property-read Collection ".camel_case($cls['fnc'])."\n"; // <\App\Models\\$tbl>
-//	    }
-//
-//	    // belongsTo
-//	    foreach($infos['meta']['belongsTo'] as $cls) {
-//		    $tbl = $this->genClassName($cls['tbl']);
-//		    echo " * @property-read \App\Models\\$tbl ".camel_case($cls['fnc'])."\n";
-//	    }
-//	    echo " * @package App\Models\n";
-//
-//        $fillable = count($fillable) ? "\n    protected \$fillable = ['".implode("','", $fillable)."'];" : '';
-//        $dates    = count($dates) ? "\n    protected \$dates    = ['".implode("','", $dates)."'];" : '';
-//        $casts    = strlen($casts) ? "\n    protected \$casts    = [".(strlen($casts) ? substr($casts, 2) : '')."];" : '';
-//
-//        echo "*/
-//class $name extends Model {{$uses}
-//    protected \$table    = '{$infos['meta']['name']}';{$fillable}{$dates}{$casts}";
-//
-//        // hasMany
-//        foreach($infos['meta']['hasMany'] as $cls) {
-//	        if(strpos($cls['tbl'], '_') !== FALSE)
-//		        continue;
-//            $tbl = $this->genClassName($cls['tbl']);
-//            echo "\n\n    public function ".camel_case($cls['fnc'])."() {
-//       return \$this->hasMany('App\Models\\$tbl');
-//    }\n";
-//        }
-//
-//        // belongsTo
-//        foreach($infos['meta']['belongsTo'] as $cls) {
-//        	if(strpos($cls['tbl'], '_') !== FALSE)
-//        		continue;
-//	        $tbl = $this->genClassName($cls['tbl']);
-//            echo "\n\n    public function ".camel_case($cls['fnc'])."() {
-//       return \$this->belongsTo('App\Models\\$tbl');
-//    }\n";
-//        }
-//
-//
-//        echo "\n}\n";
-//
-//    	return ob_get_clean();
     }
 
     /**
