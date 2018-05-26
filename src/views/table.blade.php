@@ -16,13 +16,36 @@
             color: green !important;
             border: 1px solid green;
         }
+        div.CodeMirror.cm-s-default {
+            height: 100%;
+        }
     </style>
 @endsection
 @section('script')
     <script>
         let modal = $('#myModal'), modalTitle = $('.modal-title'), modalBody = $('.modal-body'), modalBtn = $('#btnWrite'), infos = {!! json_encode($helper->getArrayAll()) !!};
-        function showDialog(table, type) {
 
+        function showCode(sourceCode, mode, readOnly) {
+            let code = $('<textarea></textarea>');
+            code.text(sourceCode);
+            modalBody.children().remove();
+            modalBody.append(code);
+
+            modal.modal({show:true});
+
+            document.editor = CodeMirror.fromTextArea(code.get(0), {
+                lineNumbers: true,
+                matchBrackets: true,
+                mode: mode,
+                indentUnit: 4,
+                indentWithTabs: true,
+                readOnly: readOnly
+            });
+
+            setTimeout(() => document.editor.refresh(), 200);
+        }
+
+        function showDialog(table, type) {
             // TODO
             // let ctrlKeyDown = arguments.callee && arguments.callee.caller && arguments.callee.caller.arguments[0].ctrlKey || false;
             // if(ctrlKeyDown) {
@@ -37,15 +60,11 @@
             $.get(`{{ $connection }}/render/${table}/${type}`, (data) => {
                 window.lastData = data;
                 modalBtn.on('click', () => {
-                    writefile(table, type);
+                    writefile(table, type, document.editor.getValue());
                 }).prop('disabled', false);
-                let code = $('<pre></pre>');
-                code.text(data.content);
-                modalBody.children().remove();
-                modalBody.append(code);
+
+                showCode(data.content, "application/x-httpd-php");
                 modalBody.append(`<span>File: ${data.path}</span>`);
-                hljs.highlightBlock(code.get(0));
-                modal.modal({show:true});
             });
         }
         function showDiffDialog(table, type) {
@@ -58,6 +77,10 @@
                 modalBtn.on('click', () => {
                     writefile(table, type, window.lastData.content);
                 }).prop('disabled', false);
+
+                // showCode(data.content, 'diff', true);
+                // modalBody.append(`<span>File: ${data.path}</span>`);
+
                 let code = $('<div></div>');
                 code.css('border', '1px solid silver').css('border-radius', '5px').css('padding', '5px').css('font-family', 'monospace');
                 code.html(data.diff.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;'));
@@ -71,11 +94,14 @@
             });
         }
         function writefile(table, type, content, overwrite) {
+            if(!content)
+                throw new Error('content must be provided!');
+
             $.ajax({
                 url: 'write',
                 data: {
                     file: infos[table][type].path,
-                    content: content || modalBody.find('pre').text(),
+                    content: content,
                     overwrite: !!overwrite
                 },
                 method: 'PUT'
@@ -208,7 +234,15 @@
                         <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'routes')"><i class="fas fa-plus"></i></button>
                     @endif
                 </td>
-                <td></td>
+                <td>
+                    @if($d['seeder']['exists'] && !$d['seeder']['different'])
+                        <button id="btn_{{ $table }}_seeder" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
+                    @elseif($d['seeder']['exists'])
+                        <button id="btn_{{ $table }}_seeder" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'seeder')"><i class="fas fa-not-equal"></i></button>
+                    @else
+                        <button id="btn_{{ $table }}_seeder" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'seeder')"><i class="fas fa-plus"></i></button>
+                    @endif
+                </td>
             </tr>
         @endforeach
     </table>
@@ -222,7 +256,7 @@
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body" style="height:75%;height:calc(100% - 240px);">
                     <p>Modal body text goes here.</p>
                 </div>
                 <div class="modal-footer">

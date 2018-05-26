@@ -201,8 +201,12 @@ class DBtoLaravelHelper {
                 case 'list':
                     $path = resource_path("views/{$tbl}/list.blade.php");
                     break;
+                case 'seeder':
+                    $path = database_path("seeds/".$this->genClassName($tbl)."Seeder.php");
+                    break;
             }
-            $content = $this->$fn($tbl);
+            $content = $withContent ? $this->$fn($tbl) : '';
+//            $content = $this->$fn($tbl);
             return [
                 $key => [
                     'path' => $path,
@@ -223,7 +227,48 @@ class DBtoLaravelHelper {
          + $test('model', $table)
          + $test('view', $table)
          + $test('edit', $table)
-         + $test('list', $table);
+         + $test('list', $table)
+         + $test('seeder', $table);
+    }
+
+    public function genSeeder($table) {
+        $infos = $this->infos[$table];
+        $name  = $this->genClassName($infos['meta']['name']);
+        $phpfile = new PhpFileBuilder("{$name}Seeder");
+
+        $phpfile->imports[] = 'Illuminate\Database\Seeder';
+
+	    $phpfile->doc[] = "Seeder for table $table";
+
+        $phpfile->extends = 'Seeder';
+
+        $content = "try {\n";
+        $content .= "            DB::beginTransaction();\n";
+        $content .= "\n";
+
+        foreach(DB::connection($this->connection)->table($table)->get() as $row) {
+//            $content .= "            // ".json_encode($row)."\n";
+            $arr = [];
+            foreach($row as $key => $value)
+                if(!in_array($key, ['id', 'created_at', 'updated_at', 'password']) && $value !== NULL) $arr[] = "'$key' => '".str_replace("'", "\'", $value)."'";
+            $content .= "            DB::table('$table')->insert([".implode(', ', $arr)."]);\n";
+        }
+
+        $content .= "\n";
+        $content .= "            DB::commit();\n";
+        $content .= "        } catch(Exception \$e) {\n";
+        $content .= "            DB::rollback();\n";
+        $content .= "            echo \$e;\n";
+        $content .= "            exit;\n";
+        $content .= "        }";
+
+        $phpfile->functions[] = [
+            'visibility' => 'public',
+            'name' => 'run',
+            'body' => $content
+        ];
+
+	    return $phpfile->__toString();
     }
 
     public function genMigration($table) {
@@ -602,7 +647,7 @@ HERE;
 	    $infos = $this->infos[$table];
 	    $name  = $this->genClassName($infos['meta']['name']);
 
-	    $phpfile = new PhpFileBuilder('App\Models', $name);
+	    $phpfile = new PhpFileBuilder($name, 'App\Models');
 
 	    $phpfile->doc[] = "Model $name";
 	    $phpfile->doc[] = "";

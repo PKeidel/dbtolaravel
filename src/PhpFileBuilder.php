@@ -14,7 +14,7 @@ class PhpFileBuilder {
 	public $vars = [];
 	public $functions = [];
 
-	public function __construct($namespace, $classname) {
+	public function __construct($classname, $namespace = NULL) {
 		$this->namespace = $namespace;
 		$this->classname = $classname;
 	}
