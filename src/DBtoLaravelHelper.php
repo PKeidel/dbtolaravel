@@ -232,13 +232,16 @@ class DBtoLaravelHelper {
     }
 
     public function genSeeder($table) {
-        $infos = $this->infos[$table];
-        $name  = $this->genClassName($infos['meta']['name']);
+        $name  = $this->genClassName($table);
+
         $phpfile = new PhpFileBuilder("{$name}Seeder");
 
         $phpfile->imports[] = 'Illuminate\Database\Seeder';
 
+        $phpfile->imports[] = "App\Models\\$name";
+
 	    $phpfile->doc[] = "Seeder for table $table";
+	    $phpfile->doc[] = "TODO: Don't forget to include `\$this->call($name::class);` in DatabaseSeeder.php::run() method";
 
         $phpfile->extends = 'Seeder';
 
@@ -251,7 +254,7 @@ class DBtoLaravelHelper {
             $arr = [];
             foreach($row as $key => $value)
                 if(!in_array($key, ['id', 'created_at', 'updated_at', 'password']) && $value !== NULL) $arr[] = "'$key' => \"".str_replace(['"', "\r", "\n"], ['\"', '', '\n'], $value)."\"";
-            $content .= "            DB::table('$table')->insert([".implode(', ', $arr)."]);\n";
+            $content .= "            $name::create([".implode(', ', $arr)."]);\n";
         }
 
         $content .= "\n";
