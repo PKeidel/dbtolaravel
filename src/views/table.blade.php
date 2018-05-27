@@ -19,6 +19,9 @@
         div.CodeMirror.cm-s-default {
             height: 100%;
         }
+        div.modal-body > div.hljs {
+            max-height: 100%;
+        }
     </style>
 @endsection
 @section('script')
