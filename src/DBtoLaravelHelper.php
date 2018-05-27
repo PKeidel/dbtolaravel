@@ -250,7 +250,7 @@ class DBtoLaravelHelper {
 //            $content .= "            // ".json_encode($row)."\n";
             $arr = [];
             foreach($row as $key => $value)
-                if(!in_array($key, ['id', 'created_at', 'updated_at', 'password']) && $value !== NULL) $arr[] = "'$key' => '".str_replace("'", "\'", $value)."'";
+                if(!in_array($key, ['id', 'created_at', 'updated_at', 'password']) && $value !== NULL) $arr[] = "'$key' => \"".str_replace(['"', "\r", "\n"], ['\"', '', '\n'], $value)."\"";
             $content .= "            DB::table('$table')->insert([".implode(', ', $arr)."]);\n";
         }
 
