@@ -193,13 +193,13 @@ class DBtoLaravelHelper {
                     $path = app_path("Models/".$this->genClassName($tbl).".php");
                     break;
                 case 'view':
-                    $path = resource_path("views/{$tbl}/view.blade.php");
+                    $path = resource_path("views/{$tbl}/generated_view.blade.php");
                     break;
                 case 'edit':
-                    $path = resource_path("views/{$tbl}/edit.blade.php");
+                    $path = resource_path("views/{$tbl}/generated_edit.blade.php");
                     break;
                 case 'list':
-                    $path = resource_path("views/{$tbl}/list.blade.php");
+                    $path = resource_path("views/{$tbl}/generated_list.blade.php");
                     break;
                 case 'seeder':
                     $path = database_path("seeds/".$this->genClassName($tbl)."Seeder.php");
@@ -232,16 +232,17 @@ class DBtoLaravelHelper {
     }
 
     public function genSeeder($table) {
-        $name  = $this->genClassName($table);
+        $name        = $this->genClassName($table);
+        $seederClass = "{$name}Seeder";
 
-        $phpfile = new PhpFileBuilder("{$name}Seeder");
+        $phpfile = new PhpFileBuilder($seederClass);
 
         $phpfile->imports[] = 'Illuminate\Database\Seeder';
 
         $phpfile->imports[] = "App\Models\\$name";
 
 	    $phpfile->doc[] = "Seeder for table $table";
-	    $phpfile->doc[] = "TODO: Don't forget to include `\$this->call($name::class);` in DatabaseSeeder.php::run() method";
+	    $phpfile->doc[] = "TODO: Don't forget to include `\$this->call($seederClass::class);` in DatabaseSeeder.php::run() method";
 
         $phpfile->extends = 'Seeder';
 
@@ -463,7 +464,7 @@ use Illuminate\Database\Migrations\Migration;
 	        }
         }
         echo "</table>\n";
-        echo "{!! button(__('Save'), 'submit', 'primary') !!}\n</form>\n";
+        echo "<input type=\"submit\" value=\"{{ __('Save') }}\" />\n</form>\n";
         return ob_get_clean();
     }
 

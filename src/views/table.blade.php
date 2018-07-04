@@ -144,7 +144,7 @@
     <br><br>
 
     <div><i class="fas fa-check text-success"></i> exists and is identical</div>
-    <div><i class="fas fa-not-equal text-warning"></i> exists bus is different <small>(click to view diff)</small></div>
+    <div><i class="fas fa-not-equal text-warning"></i> exists but is different <small>(click to view diff)</small></div>
     <div><i class="fas fa-plus text-info"></i> create new file</div>
 
     <table class="table table-sm table-bordered">
