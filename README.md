@@ -3,9 +3,11 @@
 <img src="http://forthebadge.com/images/badges/makes-people-smile.svg" height="20px" />
 <a href="https://travis-ci.org/PKeidel/dbtolaravel"><img src="https://travis-ci.org/PKeidel/dbtolaravel.svg" alt="Build Status"></a>
 
-## Install
+[![Beerpay](https://beerpay.io/PKeidel/dbtolaravel/badge.svg?style=flat)](https://beerpay.io/PKeidel/dbtolaravel)
+
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel?ref=badge_shield)
 
+## Install
 
 ```shell
 composer require pkeidel/dbtolaravel
