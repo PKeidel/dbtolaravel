@@ -1,7 +1,7 @@
 {
   "name": "pkeidel/dbtolaravel",
   "description": "Reads a database and creates the migrations, models, controllers and blades for the tables",
-  "keywords": ["laravel5", "dbtolaravel", "db2laravel"],
+  "keywords": ["laravel5", "laravel6", "dbtolaravel", "db2laravel"],
   "license": "MIT",
   "authors": [
     {
@@ -10,7 +10,7 @@
     }
   ],
   "require": {
-    "php": ">=5.6.0",
+    "php": ">=7.0",
     "doctrine/dbal": "^2.6",
     "cogpowered/finediff": "0.3.*"
   },

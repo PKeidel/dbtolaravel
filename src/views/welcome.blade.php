@@ -168,6 +168,7 @@
             @endforeach
         </select>
         <input type="submit" value="Set Connection">
+        <input type="submit" value="Clear Cache" name="resetcache">
     </form>
     <br>
     <table class="table" border="" width="100%">

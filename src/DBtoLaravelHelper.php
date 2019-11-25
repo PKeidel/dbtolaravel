@@ -2,13 +2,15 @@
 
 namespace PKeidel\DBtoLaravel;
 
+use cogpowered\FineDiff\Granularity\GranularityInterface;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Types\IntegerType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Database\MySqlConnection;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 /*
 TODO Support morphs
@@ -30,8 +32,11 @@ class DBtoLaravelHelper {
         $this->connection = !empty($connection) ? $connection : config('database.default');
         $this->driver     = config("database.connections.$connection")['driver'];
 
+        if(request()->has('resetcache'))
+            Cache::forget("dbtolaravel:tables:1:$connection");
+
         $infos = Cache::remember("dbtolaravel:tables:1:$connection", 10, function() {
-	        /** @var MySqlConnection $con */
+	        /** @var Connection $con */
 	        $con = DB::connection($this->connection);
 
 	        // Set up some mappings
@@ -41,12 +46,9 @@ class DBtoLaravelHelper {
 
 	        $this->manager    = $con->getDoctrineSchemaManager();
 
-	        $tables = $this->manager->listTableNames();
 	        $infos  = [];
+	        $tables = $this->manager->listTableNames();
 	        foreach($tables as $tbl) {
-
-
-
 		        $colsTmp       = $this->manager->listTableColumns($tbl);
 		        $cols          = [];
 		        $dependson     = [];
@@ -76,7 +78,7 @@ class DBtoLaravelHelper {
 			        	    $belongsTo[] = [
 			        	    	'tbl' => $tblName,
 					            'cls' => ucfirst($tblName),
-					            'sgl' => str_singular($tblName)
+					            'sgl' => Str::singular($tblName)
 				            ];
 			        }
 		        }
@@ -117,11 +119,11 @@ class DBtoLaravelHelper {
 			        $infos[$tbl]['meta']['islinktable'] = true;
 			        $infos[$inf[0]]['meta']['belongsToMany'][] = [
 			        	'tbl' => ucfirst($inf[1]),
-				        'fnc' => str_singular($inf[1])
+				        'fnc' => Str::singular($inf[1])
 			        ];
 			        $infos[$inf[1]]['meta']['belongsToMany'][] = [
 			        	'tbl' => ucfirst($inf[0]),
-				        'fnc' => str_singular($inf[0])
+				        'fnc' => Str::singular($inf[0])
 			        ];
 		        }
 	        }
@@ -134,7 +136,7 @@ class DBtoLaravelHelper {
 				        $infos[$foreign['refTbl']]['meta']['hasOneOrMany'][] = [
 				        	'tbl' => $tbl,
 				        	'cls' => ucfirst($tbl),
-					        'sgl' => str_singular($tbl)
+					        'sgl' => Str::singular($tbl)
 				        ];
 		        }
 	        }
@@ -151,7 +153,7 @@ class DBtoLaravelHelper {
     }
 
 	public function genClassName($table) {
-		return ucfirst(camel_case($table));
+		return ucfirst(Str::camel($table));
     }
 
 	private function genMigrationClassName($table) {
@@ -174,7 +176,7 @@ class DBtoLaravelHelper {
         if(!empty($this->arrayCache[$table."-".($withContent ? 'yes' : 'no')]))
             return $this->arrayCache[$table."-".($withContent ? 'yes' : 'no')];
 
-        $diff = new \cogpowered\FineDiff\Diff();
+        $diff = new \cogpowered\FineDiff\Diff(new \cogpowered\FineDiff\Granularity\Word());
 
         $test = function($key, $tbl) use($diff, $withContent) {
             $fn = "gen".ucfirst($key);
@@ -287,15 +289,13 @@ use Illuminate\Database\Migrations\Migration;
 
 ";
 
-        echo "class ".$this->genMigrationClassName($table)." extends Migration
-{
+        echo "class ".$this->genMigrationClassName($table)." extends Migration {
     /**
      * Run the migrations.
      *
      * @return void
      */
-    public function up()
-    {
+    public function up() {
         Schema::create('{$infos['meta']['name']}', function (Blueprint \$table) {\n";
 
         $morphs = $this->getMorphs($infos);
@@ -487,7 +487,7 @@ use Illuminate\Database\Migrations\Migration;
     public function genList($table) {
         $infos = $this->infos[$table];
         $tbl = $infos['meta']['name'];
-        $tblSing = str_singular($tbl);
+        $tblSing = Str::singular($tbl);
         $letter = substr($tbl, 0, 1);
         ob_start();
 
@@ -523,7 +523,7 @@ use Illuminate\Database\Migrations\Migration;
 
     public function genController($table) {
         $infos = $this->infos[$table];
-        $tableSing = str_singular($table);
+        $tableSing = Str::singular($table);
         $name  = $this->genClassName($table);
 
         ob_start();
@@ -709,11 +709,11 @@ HERE;
 	    // belongsTo
 	    foreach($infos['meta']['belongsTo'] as $info) {
 		    $cls = $info['cls'];
-		    $phpfile->doc[] = "@property-read \App\Models\\$cls ".str_singular($info['tbl'])." // from belongsTo";
+		    $phpfile->doc[] = "@property-read \App\Models\\$cls ".Str::singular($info['tbl'])." // from belongsTo";
 
 		    $phpfile->functions[] = [
 		    	'visibility' => 'public',
-		    	'name' => str_singular($info['tbl']),
+		    	'name' => Str::singular($info['tbl']),
 		    	'body' => "return \$this->belongsTo('App\Models\\$cls');"
 		    ];
 	    }

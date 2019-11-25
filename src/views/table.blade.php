@@ -147,7 +147,7 @@
     <div><i class="fas fa-not-equal text-warning"></i> exists but is different <small>(click to view diff)</small></div>
     <div><i class="fas fa-plus text-info"></i> create new file</div>
 
-    <table class="table table-sm table-bordered">
+    <table class="table table-bordered table-small">
         <tr>
             <th>table</th>
             <th>migration</th>
@@ -170,7 +170,7 @@
         </tr>
         @foreach($helper->getArrayAll() as $table => $data)
             @php
-            $d = array_except($data, ['schema']);
+            $d = \Illuminate\Support\Arr::except($data, ['schema']);
             @endphp
             <tr>
                 <td>{{ $table }}</td>
@@ -186,9 +186,9 @@
                 <td>
                     @if($d['model']['exists'] && !$d['model']['different'])
                         <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
-                    @elseif($d['model']['exists'])
-                        <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'model')"><i class="fas fa-not-equal"></i></button>
+{{--                    @elseif($d['model']['exists'])--}}
                     @else
+                        <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'model')"><i class="fas fa-not-equal"></i></button>
                         <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'model')"><i class="fas fa-plus"></i></button>
                     @endif
                 </td>
@@ -242,6 +242,7 @@
                         <button id="btn_{{ $table }}_seeder" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
                     @elseif($d['seeder']['exists'])
                         <button id="btn_{{ $table }}_seeder" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'seeder')"><i class="fas fa-not-equal"></i></button>
+                        <button id="btn_{{ $table }}_seeder" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'seeder')"><i class="fas fa-plus"></i></button>
                     @else
                         <button id="btn_{{ $table }}_seeder" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'seeder')"><i class="fas fa-plus"></i></button>
                     @endif
