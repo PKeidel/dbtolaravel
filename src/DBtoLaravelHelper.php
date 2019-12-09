@@ -78,7 +78,8 @@ class DBtoLaravelHelper {
 			        	    $belongsTo[] = [
 			        	    	'tbl' => $tblName,
 					            'cls' => ucfirst($tblName),
-					            'sgl' => Str::singular($tblName)
+					            'sgl' => Str::singular($tblName),
+                                'col' => $col->getName()
 				            ];
 			        }
 		        }
@@ -176,14 +177,27 @@ class DBtoLaravelHelper {
         if(!empty($this->arrayCache[$table."-".($withContent ? 'yes' : 'no')]))
             return $this->arrayCache[$table."-".($withContent ? 'yes' : 'no')];
 
-        $diff = new \cogpowered\FineDiff\Diff(new \cogpowered\FineDiff\Granularity\Word());
+        $diff = new \cogpowered\FineDiff\Diff(new \cogpowered\FineDiff\Granularity\Character());
 
         $test = function($key, $tbl) use($diff, $withContent) {
             $fn = "gen".ucfirst($key);
             $path = 'na';
             switch($key) {
                 case 'migration':
+                    // else create a new file
                     $path = database_path("migrations/".date('Y_m_d_His')."_create_{$tbl}_table.php");
+
+                    // If a file with "Schema::create('$tbl'" exists, then use that existing file
+                    foreach(scandir($migrationsPath = database_path("migrations")) as $file) {
+                        if($file === '.' || $file === '..') continue;
+                        $fullFilePath = "$migrationsPath/$file";
+                        if(!is_file($fullFilePath)) continue;
+                        $content = file_get_contents($fullFilePath);
+                        preg_match("/Schema::create\(['\"]{$tbl}['\"]/", $content, $matches);
+                        if($matches)
+                            // dd($fullFilePath, $content, $matches);
+                            $path = $fullFilePath;
+                    }
                     break;
                 case 'routes':
                     $path = "web.php";
@@ -507,14 +521,14 @@ use Illuminate\Database\Migrations\Migration;
                 echo "  <td>{{ \${$letter}->$col }}</td>\n";
             }
         }
-	    echo "  <td>
-    @can('{$tbl}_show')
-      <a role=\"button\" href=\"{{ route('{$tbl}.show', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-eye\"></i></a>
-    @endcan
-    @can('{$tbl}_edit')
-      <a role=\"button\" href=\"{{ route('{$tbl}.edit', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-pencil\"></i></a>
-    @endcan
-  </td>\n";
+	    echo "  <td>";
+        echo "@can('{$tbl}_show')";
+        echo "<a role=\"button\" href=\"{{ route('{$tbl}.show', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-eye\"></i></a>";
+    echo "@endcan";
+    echo "@can('{$tbl}_edit')";
+      echo "<a role=\"button\" href=\"{{ route('{$tbl}.edit', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-pencil\"></i></a>";
+    echo "@endcan";
+  echo "</td>\n";
         echo "  </tr>\n";
         echo "@endforeach\n";
         echo "</table>\n";
@@ -714,7 +728,7 @@ HERE;
 		    $phpfile->functions[] = [
 		    	'visibility' => 'public',
 		    	'name' => Str::singular($info['tbl']),
-		    	'body' => "return \$this->belongsTo('App\Models\\$cls');"
+		    	'body' => "return \$this->belongsTo('App\Models\\$cls', '{$info['col']}');"
 		    ];
 	    }
 	    // belongsToMany

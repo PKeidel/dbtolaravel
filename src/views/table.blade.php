@@ -137,6 +137,7 @@
                     @endforeach
                 </select>
                 <input type="submit" class="btn btn-sm btn-primary" value="Set Connection">
+                <input type="submit" value="Clear Cache" name="resetcache">
             </form>
         </div>
     </div>
