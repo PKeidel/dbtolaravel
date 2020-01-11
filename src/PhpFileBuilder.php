@@ -23,7 +23,7 @@ class PhpFileBuilder {
 		$content = "<?php\n";
 
 		if($this->namespace)
-			$content .= "namespace $this->namespace;\n\n";
+			$content .= "\nnamespace $this->namespace;\n\n";
 
 		sort($this->imports);
 		sort($this->use);
@@ -57,18 +57,24 @@ class PhpFileBuilder {
 			foreach($this->vars as $v)
 				$content .= "    $v;\n";
 
-		if(count($this->doc)) {
-			$content .= "\n";
-			if(count($this->functions))
-				foreach($this->functions as $fn) {
-					if(!empty($fn['comment']))
-						$content .= "    // {$fn['comment']}\n";
-					$content .= "    {$fn['visibility']} function {$fn['name']}() {\n        {$fn['body']}\n    }\n";
-				}
-		}
+        $content .= "\n";
+        if(count($this->functions)) {
+            foreach($this->functions as $fn) {
+                $fn['visibility'] = $fn['visibility'] ?? 'public';
+                $doc = "";
+                foreach($fn['doc'] ?? [] as $c)
+                    $doc .= "     * $c\n";
+                if(strlen($doc) > 0) {
+                    $doc = substr($doc, 0, -1);
+                    $content .= "    /**\n$doc\n     */\n";
+                }
+                if(!empty($fn['comment']))
+                    $content .= "    // {$fn['comment']}\n";
+                $content .= "    {$fn['visibility']} function {$fn['name']}() {\n        {$fn['body']}\n    }\n\n";
+            }
+        }
 
-
-		$content .= "}\n";
+        $content = substr($content, 0, -1)."}\n";
 
 		return $content;
 	}

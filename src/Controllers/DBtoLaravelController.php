@@ -15,7 +15,7 @@ class DBtoLaravelController extends Controller {
         return redirect("/dbtolaravel/$connection");
     }
 
-    public function welcome($connection) {
+    public function table($connection) {
 
         if (request()->has('connection'))
             return redirect("/dbtolaravel/".request()->get('connection'));
@@ -63,10 +63,10 @@ class DBtoLaravelController extends Controller {
 			return ['error' => "File $file already exists", 'key' => 'file-exists'];
 
 		$dir = dirname($file);
-		if(!file_exists($dir))
-			mkdir($dir);
 
 		try {
+            if(!file_exists($dir))
+                mkdir($dir, 0777, true);
             $erg = file_put_contents($file, $content);
             if($erg === FALSE)
                 return ['error' => true];

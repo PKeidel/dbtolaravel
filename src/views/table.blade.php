@@ -22,11 +22,69 @@
         div.modal-body > div.hljs {
             max-height: 100%;
         }
+        .table td, .table th {
+            padding: .3rem;
+        }
+
+        .lds-ring {
+            display: inline-block;
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        .lds-ring div {
+            box-sizing: border-box;
+            display: block;
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            margin: 8px;
+            border: 8px solid #fff;
+            border-radius: 50%;
+            animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+            border-color: #fff transparent transparent transparent;
+        }
+        .lds-ring div:nth-child(1) {
+            animation-delay: -0.45s;
+        }
+        .lds-ring div:nth-child(2) {
+            animation-delay: -0.3s;
+        }
+        .lds-ring div:nth-child(3) {
+            animation-delay: -0.15s;
+        }
+        @keyframes lds-ring {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+        .loading-animation {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background-color: #0000006e;
+            padding-left: 50%;
+            padding-top: 20%;
+            z-index: 9999;
+        }
     </style>
 @endsection
 @section('script')
     <script>
         let modal = $('#myModal'), modalTitle = $('.modal-title'), modalBody = $('.modal-body'), modalBtn = $('#btnWrite'), infos = {!! json_encode($helper->getArrayAll()) !!};
+
+        function startLoading() {
+            $('.loading-animation').css('display', 'block');
+        }
+        function endLoading() {
+            $('.loading-animation').css('display', 'none');
+        }
 
         function showCode(sourceCode, mode, readOnly) {
             let code = $('<textarea></textarea>');
@@ -49,57 +107,72 @@
         }
 
         function showDialog(table, type) {
-            // TODO
-            // let ctrlKeyDown = arguments.callee && arguments.callee.caller && arguments.callee.caller.arguments[0].ctrlKey || false;
-            // if(ctrlKeyDown) {
-            //     alert("quick write");
-            //     return;
-            // }
+            // quick write
+            let ctrlKeyDown = arguments.callee && arguments.callee.caller && arguments.callee.caller.arguments[0].ctrlKey || false;
+            if(ctrlKeyDown) {
+                startLoading();
+                $.get(`{{ $connection }}/render/${table}/${type}`)
+                    .success((data) => {
+                        endLoading();
+                        writefile(table, type, data.content);
+                    })
+                    .error(endLoading);
+                return;
+            }
 
             modalTitle.text(`View: ${table} ${type}`);
             modalBtn.off().prop('disabled', true);
             modalBody.children().remove();
 
-            $.get(`{{ $connection }}/render/${table}/${type}`, (data) => {
-                window.lastData = data;
-                modalBtn.on('click', () => {
-                    writefile(table, type, document.editor.getValue());
-                }).prop('disabled', false);
+            startLoading();
+            $.get(`{{ $connection }}/render/${table}/${type}`)
+                .success((data) => {
+                    endLoading();
+                    window.lastData = data;
+                    modalBtn.on('click', () => {
+                        writefile(table, type, document.editor.getValue());
+                    }).prop('disabled', false);
 
-                showCode(data.content, "application/x-httpd-php");
-                modalBody.append(`<span>File: ${data.path}</span>`);
-            });
+                    showCode(data.content, "application/x-httpd-php");
+                    modalBody.append(`<span>File: ${data.path}</span>`);
+                })
+                .error(endLoading);
         }
         function showDiffDialog(table, type) {
             modalTitle.text(`Diff: ${table} ${type}`);
             modalBtn.off().prop('disabled', true);
             modalBody.children().remove();
 
-            $.get(`{{ $connection }}/render/${table}/${type}/diff`, (data) => {
-                window.lastData = data;
-                modalBtn.on('click', () => {
-                    writefile(table, type, window.lastData.content);
-                }).prop('disabled', false);
+            startLoading();
+            $.get(`{{ $connection }}/render/${table}/${type}/diff`)
+                .success((data) => {
+                    endLoading();
+                    window.lastData = data;
+                    modalBtn.on('click', () => {
+                        writefile(table, type, window.lastData.content);
+                    }).prop('disabled', false);
 
-                // showCode(data.content, 'diff', true);
-                // modalBody.append(`<span>File: ${data.path}</span>`);
+                    // showCode(data.content, 'diff', true);
+                    // modalBody.append(`<span>File: ${data.path}</span>`);
 
-                let code = $('<div></div>');
-                code.css('border', '1px solid silver').css('border-radius', '5px').css('padding', '5px').css('font-family', 'monospace');
-                code.html(data.diff.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;'));
-                modalBody.children().remove();
-                modalBody.append(code);
-                modalBody.append(`<div>File: ${data.path}</div>`);
-                modalBody.append(`<div><del>red will be removed</del></div>`);
-                modalBody.append(`<div><ins>green will be added</ins></div>`);
-                hljs.highlightBlock(code.get(0));
-                modal.modal({show:true});
-            });
+                    let code = $('<div></div>');
+                    code.css('border', '1px solid silver').css('border-radius', '5px').css('padding', '5px').css('font-family', 'monospace');
+                    code.html(data.diff.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;'));
+                    modalBody.children().remove();
+                    modalBody.append(code);
+                    modalBody.append(`<div>File: ${data.path}</div>`);
+                    modalBody.append(`<div><del>red will be removed</del></div>`);
+                    modalBody.append(`<div><ins>green will be added</ins></div>`);
+                    hljs.highlightBlock(code.get(0));
+                    modal.modal({show:true});
+                })
+                .error(endLoading);
         }
         function writefile(table, type, content, overwrite) {
             if(!content)
                 throw new Error('content must be provided!');
 
+            startLoading();
             $.ajax({
                 url: 'write',
                 data: {
@@ -108,7 +181,8 @@
                     overwrite: !!overwrite
                 },
                 method: 'PUT'
-            }).done(function(data) {
+            }).success(function(data) {
+                endLoading();
                 console.log(data);
                 if(data.error && data.key && data.key === 'file-exists') {
                     if(confirm('File already exists. Override?')) {
@@ -122,11 +196,14 @@
                     modal.modal('hide');
                 }
                 window.lastData = null;
-            });
+            })
+            .error(endLoading);
         }
     </script>
 @endsection
 @section('content')
+    <div class="loading-animation"><div class="lds-ring"><div></div><div></div><div></div><div></div></div></div>
+
     <div class="card">
         <div class="card-header">Connection: {{ $connection }}</div>
         <div class="card-body">
@@ -146,7 +223,7 @@
 
     <div><i class="fas fa-check text-success"></i> exists and is identical</div>
     <div><i class="fas fa-not-equal text-warning"></i> exists but is different <small>(click to view diff)</small></div>
-    <div><i class="fas fa-plus text-info"></i> create new file</div>
+    <div><i class="fas fa-plus text-info"></i> create new file <small>(click => open editor; ctrl+click => quick write)</small></div>
 
     <table class="table table-bordered table-small">
         <tr>
@@ -180,6 +257,7 @@
                         <button id="btn_{{ $table }}_migration" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
                     @elseif($d['migration']['exists'])
                         <button id="btn_{{ $table }}_migration" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'migration')"><i class="fas fa-not-equal"></i></button>
+                        <button id="btn_{{ $table }}_migration" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'migration')"><i class="fas fa-plus"></i></button>
                     @else
                         <button id="btn_{{ $table }}_migration" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'migration')"><i class="fas fa-plus"></i></button>
                     @endif
@@ -187,9 +265,10 @@
                 <td>
                     @if($d['model']['exists'] && !$d['model']['different'])
                         <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
-{{--                    @elseif($d['model']['exists'])--}}
-                    @else
+                    @elseif($d['model']['exists'])
                         <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'model')"><i class="fas fa-not-equal"></i></button>
+                        <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'model')"><i class="fas fa-plus"></i></button>
+                    @else
                         <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'model')"><i class="fas fa-plus"></i></button>
                     @endif
                 </td>
@@ -223,9 +302,9 @@
                 <td>
                     @if($d['controller']['exists'] && !$d['controller']['different'])
                         <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
-                    @elseif($d['controller']['exists'])
-                        <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'controller')"><i class="fas fa-not-equal"></i></button>
+{{--                    @elseif($d['controller']['exists'])--}}
                     @else
+                        <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'controller')"><i class="fas fa-not-equal"></i></button>
                         <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'controller')"><i class="fas fa-plus"></i></button>
                     @endif
                 </td>

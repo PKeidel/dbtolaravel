@@ -35,7 +35,7 @@ class DBtoLaravelHelper {
         if(request()->has('resetcache'))
             Cache::forget("dbtolaravel:tables:1:$connection");
 
-        $infos = Cache::remember("dbtolaravel:tables:1:$connection", 10, function() {
+        $infos = Cache::remember("dbtolaravel:tables:1:$connection", 300, function() {
 	        /** @var Connection $con */
 	        $con = DB::connection($this->connection);
 
@@ -43,6 +43,8 @@ class DBtoLaravelHelper {
 	        // Allow user to type some own mappings into some textfield "enum=string"
 	        $platform = $con->getDoctrineConnection()->getDatabasePlatform();
 	        $platform->registerDoctrineTypeMapping('enum', 'string');
+            $platform->registerDoctrineTypeMapping('bytea', 'binary');
+            $platform->registerDoctrineTypeMapping('macaddr', 'string');
 
 	        $this->manager    = $con->getDoctrineSchemaManager();
 
@@ -55,33 +57,47 @@ class DBtoLaravelHelper {
 		        $foreigns      = [];
 		        $belongsTo     = [];
 		        $belongsToMany = [];
+		        $morph         = [];
+		        $colNames      = array_map(function($c) {
+		            return $c->getName();
+                }, $colsTmp);
 
 		        // $cols verarbeiten und $meta generieren
 		        /** @var Column $col */
 		        foreach($colsTmp as $col) {
-			        $cols[$col->getName()] = [
-				        'type'          => $col->getType()->getName(),
-				        'len'           => $col->getLength(),
-				        'unsigned'      => $col->getUnsigned(),
-				        'null'          => !$col->getNotnull(),
-				        'autoincrement' => $col->getAutoincrement(),
-				        'default'       => $col->getDefault(),
-				        'comment'       => $col->getComment(),
-			        ];
-
-			        // TODO belongsTo
+			        // morph || belongsTo
 			        // Wenn der Name %_id ist, dann ist es ein belongsTo zu der anderen Tabelle
-			        // TODO außer es existiert auch eine %_type Spalte, dann ist es ein morph
+			        // außer es existiert auch eine %_type Spalte, dann ist es ein morph
 			        if(substr($col->getName(), -3) === '_id') {
-			        	$tblName = substr($col->getName(), 0, -3);
-			        	if(in_array($tblName, $tables))
+                        $tblName = substr($col->getName(), 0, -3);
+			        	if(in_array("{$tblName}_type", $colNames)) {
+                            $morph[] = [
+                                'col'  => $tblName,
+                                'null' => !$col->getNotnull(),
+                            ];
+                            continue;
+			        	}
+			        	elseif(in_array($tblName, $tables)) {
 			        	    $belongsTo[] = [
-			        	    	'tbl' => $tblName,
-					            'cls' => ucfirst($tblName),
-					            'sgl' => Str::singular($tblName),
-                                'col' => $col->getName()
-				            ];
+                                'tbl' => $tblName,
+                                'cls' => ucfirst($tblName),
+                                'sgl' => Str::singular($tblName),
+                                'col' => $col->getName(),
+                            ];
+			        	}
 			        }
+
+                    $cols[$col->getName()] = [
+                        'type'          => $col->getType()->getName(),
+                        'len'           => $col->getLength(),
+                        'precision'     => $col->getPrecision(),
+                        'scale'         => $col->getScale(),
+                        'unsigned'      => $col->getUnsigned(),
+                        'null'          => !$col->getNotnull(),
+                        'autoincrement' => $col->getAutoincrement(),
+                        'default'       => $col->getDefault(),
+                        'comment'       => $col->getComment(),
+                    ];
 		        }
 
 		        $tmp       = $this->manager->listTableForeignKeys($tbl);
@@ -107,10 +123,15 @@ class DBtoLaravelHelper {
 			        'hasOneOrMany' => [],
 			        'belongsTo' => $belongsTo,
 			        'belongsToMany' => $belongsToMany,
+			        'morph' => $morph,
 			        'useSoftDelete' => isset($cols['deleted_at']),
 			        'useTimestamps' => isset($cols['created_at']) && isset($cols['updated_at'])
 		        ], 'cols' => $cols];
 	        }
+
+	        // Diesen Stand auslagern in eigene function
+            // um ggf. mehr infos per DDL sammeln zu können
+//	        dd($infos);
 
 	        // Und noch ne Runde, für die Verknüpfungen
 	        foreach($tables as $tbl) {
@@ -222,7 +243,6 @@ class DBtoLaravelHelper {
                     break;
             }
             $content = $withContent ? $this->$fn($tbl) : '';
-//            $content = $this->$fn($tbl);
             return [
                 $key => [
                     'path' => $path,
@@ -292,25 +312,19 @@ class DBtoLaravelHelper {
     }
 
     public function genMigration($table) {
-        $infos = $this->infos[$table];
+        $phpfile = new PhpFileBuilder($this->genMigrationClassName($table));
+
+        $phpfile->imports[] = 'Illuminate\Support\Facades\Schema';
+        $phpfile->imports[] = 'Illuminate\Database\Schema\Blueprint';
+        $phpfile->imports[] = 'Illuminate\Database\Migrations\Migration';
+
+        $phpfile->extends = 'Migration';
+
         ob_start();
 
-        echo "<?php
+        $infos = $this->infos[$table];
 
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Migrations\Migration;
-
-";
-
-        echo "class ".$this->genMigrationClassName($table)." extends Migration {
-    /**
-     * Run the migrations.
-     *
-     * @return void
-     */
-    public function up() {
-        Schema::create('{$infos['meta']['name']}', function (Blueprint \$table) {\n";
+        echo "Schema::create('{$infos['meta']['name']}', function (Blueprint \$table) {\n";
 
         $morphs = $this->getMorphs($infos);
         if($morphs !== NULL) {
@@ -322,16 +336,13 @@ use Illuminate\Database\Migrations\Migration;
             /** @var Column $info */
             $info = (object) $info;
 
-//            if($col == 'used')
-//                dd($info);
-
             $laravelType = strtolower($info->type);
             $colName     = "'$col'";
             $extra       = '';
+            $args        = '';
 
-            if($info->null) {
+            if($info->null)
                 $extra .= '->nullable()';
-            }
 
             // Ignore some columns, they are handled elsewhere
             if(in_array($col, ['updated_at', 'deleted_at', 'created_at']))
@@ -343,9 +354,8 @@ use Illuminate\Database\Migrations\Migration;
             } elseif($info->type === 'integer') {
 
                 $laravelType = 'integer';
-                if(isset($info->len) && $info->len != 10) {
-                    $colName = "'$col', $info->len";
-                }
+                if(isset($info->len) && $info->len != 10)
+                    $args = ", $info->len";
 
                 if($info->autoincrement)
                     $laravelType = 'increments';
@@ -353,7 +363,6 @@ use Illuminate\Database\Migrations\Migration;
                     $laravelType = 'unsignedInteger';
                 if($info->len == 1) {
                     $laravelType = 'boolean';
-                    $colName     = "'$col'";
                 }
 
             } elseif($info->type === 'bigint') {
@@ -362,14 +371,14 @@ use Illuminate\Database\Migrations\Migration;
                 if($info->unsigned)
                     $extra .= '->unsigned()';
                 if(!empty($info->len) && $info->len != 20)
-                    $colName = "'$col', $info->len";
+                    $args = ", $info->len";
 
                 if($info->autoincrement)
                     $laravelType = 'bigIncrements';
 
             } elseif($info->type === 'string') {
                 if(!empty($info->len) && $info->len != 255)
-                    $colName = "'$col', $info->len";
+                    $args = ", $info->len";
             } elseif($info->type === 'longtext') {
                 $laravelType = 'longText';
             } elseif($info->type === 'tinyint') {
@@ -379,6 +388,11 @@ use Illuminate\Database\Migrations\Migration;
                 if($info->len == 1)
                     $laravelType = 'boolean';
             }
+
+            // some columns may have a precision and scale value
+            if(in_array($laravelType, ['decimal', 'float', 'double']))
+            if(!empty($info->precision))
+                $args = ", $info->precision, $info->scale";
 
             if($info->default !== NULL) {
                 if(is_numeric($info->default))
@@ -392,7 +406,7 @@ use Illuminate\Database\Migrations\Migration;
             if(!empty($info->comment))
                 $extra .= "->comment('".addslashes($info->comment)."')";
 
-            echo "            \$table->$laravelType($colName)$extra;\n";
+            echo "            \$table->$laravelType($colName$args)$extra;\n"; // ".json_encode($info)."
         }
 
         if($infos['meta']['useTimestamps'])
@@ -404,8 +418,8 @@ use Illuminate\Database\Migrations\Migration;
         $allForeigns = [];
         if(isset($infos['meta']['foreign']) && count($infos['meta']['foreign']) > 0) {
             foreach($infos['meta']['foreign'] as $f) {
-            	// TODO detect max length and cut beginning of
-	            $alias = '';
+                // TODO detect max length and cut beginning of
+                $alias = '';
 //	            $indexname = $table.'_'.$f['col'].'_foreign';
 //        	    $maxlen = 40;
 //	            if(strlen($indexname) > $maxlen)
@@ -423,9 +437,9 @@ use Illuminate\Database\Migrations\Migration;
             foreach($infos['meta']['index'] as $index) {
                 $cols = $index->getColumns();
 
-	            if($index->isPrimary() && count($cols) == 1 && !$infos['cols'][$cols[0]]['autoincrement']) {
-		            echo "            \$table->primary(".json_encode($cols)."); // isPrimary => ".$index->getName()."\n";
-	            } elseif($index->isSimpleIndex()) {
+                if($index->isPrimary() && count($cols) == 1 && !$infos['cols'][$cols[0]]['autoincrement']) {
+                    echo "            \$table->primary(".json_encode($cols)."); // isPrimary => ".$index->getName()."\n";
+                } elseif($index->isSimpleIndex()) {
                     echo "            \$table->index(".json_encode($cols)."); // isSimpleIndex => ".$index->getName()."\n";
                 } elseif($index->isUnique()) {
                     if(count($cols) != 1 || $cols[0] != 'id')
@@ -436,11 +450,16 @@ use Illuminate\Database\Migrations\Migration;
             }
         }
 
-        echo "        });
-    }
-}";
+        $content = ob_get_clean();
 
-        return ob_get_clean();
+        $phpfile->functions[] = [
+            'visibility' => 'public',
+            'name' => 'up',
+            'doc' => ['Run the migrations.', '@return void'],
+            'body' => $content
+        ];
+
+        return $phpfile->__toString();
     }
 
     public function genEdit($table) {
@@ -540,114 +559,59 @@ use Illuminate\Database\Migrations\Migration;
         $tableSing = Str::singular($table);
         $name  = $this->genClassName($table);
 
+        $phpfile = new PhpFileBuilder("{$name}Controller", "App\Http\Controllers");
+
+        $phpfile->imports[] = "Illuminate\\Http\\Request";
+        $phpfile->imports[] = "App\\Models\\{$name}";
+
+        $phpfile->extends = 'Controller';
+
+        function mkfn($fnname, $doc, $body) {
+            if(in_array("", $doc, true))
+                $doc = array_merge($doc, ["@return \Illuminate\Http\Response"]);
+            else
+                $doc = array_merge($doc, ["", "@return \Illuminate\Http\Response"]);
+            return [
+                'name' => $fnname,
+                'doc' => $doc,
+                'body' => $body
+            ];
+        }
+
         ob_start();
-
-        echo <<<HERE
-<?php
-
-namespace App\Http\Controllers;
-
-use Illuminate\Http\Request;
-use App\Models\\{$name};
-
-class {$name}Controller extends Controller {
-    /**
-     * GET|HEAD  /$table
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index() {
-        return view("$table.list", ['$table' => {$name}::all()]);
-    }
-
-    /**
-     * GET|HEAD  /$table/create
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create() {
-        return view("$table.edit");
-    }
-
-    /**
-     * POST  /$table
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  \$request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request \$request) {
-        // TODO complete validation
-        \$data = \$this->validate(\$request, [\n
-HERE;
+        echo "// TODO complete validation
+        \$data = \$this->validate(\$request, [\n";
         foreach($infos['cols'] as $col => $info) {
             if(in_array($col, ['id', 'created_at', 'updated_at', 'deleted_at']))
                 continue;
             echo "            '$col' => '',\n";
         }
-        echo <<< HERE
+        echo "
         ]);
 
         {$name}::create(\$data);
 
-        return redirect(route("$table.index"));
-    }
+        return redirect(route(\"$table.index\"));";
+        $contentStore = ob_get_clean();
 
-    /**
-     * GET|HEAD /$table/{$tableSing}
-     * Display the specified resource.
-     *
-     * @param  $name \$$tableSing
-     * @return \Illuminate\Http\Response
-     */
-    public function show($name \$$tableSing) {
-        return view("$table.view", ["$table" => \$$tableSing]);
-    }
-
-    /**
-     * GET|HEAD /$table/\{$tableSing}/edit
-     * Show the form for editing the specified resource.
-     *
-     * @param  $name \$$tableSing
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($name \$$tableSing) {
-        return view("$table.edit", ["$table" => \$$tableSing]);
-    }
-
-    /**
-     * PUT|PATCH /$table/{$tableSing}
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  \$request
-     * @param  $name \$$tableSing
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request \$request, $name \$$tableSing) {
-        \$newData = \$request->except(['_method', '_token', 'id']);
+        $phpfile->functions[] = mkfn('index', ["GET|HEAD  /$table", "Display a listing of the resource."], "return view(\"$table.list\", ['$table' => {$name}::all()]);");
+        $phpfile->functions[] = mkfn('create', ["GET|HEAD  /$table/create", "Show the form for creating a new resource."], "return view(\"$table.edit\");");
+        $phpfile->functions[] = mkfn('store', ["POST  /$table", "Store a newly created resource in storage.", "", "@param  \Illuminate\Http\Request  \$request"], $contentStore);
+        $phpfile->functions[] = mkfn('show', ["GET|HEAD /$table/{{$tableSing}}", "Display the specified resource.", "", "@param  $name \$$tableSing"], "return view(\"$table.view\", [\"$table\" => \$$tableSing]);");
+        $phpfile->functions[] = mkfn('edit', ["GET|HEAD /$table/{{$tableSing}}/edit", "Show the form for editing the specified resource.", "", "@param  $name \$$tableSing"], "return view(\"$table.edit\", [\"$table\" => \$$tableSing]);");
+        $phpfile->functions[] = mkfn('update', ["PUT|PATCH /$table/{{$tableSing}}", "Update the specified resource in storage.", "", "@param  \Illuminate\Http\Request  \$request", "@param  $name \$$tableSing"], <<<HERE
+\$newData = \$request->except(['_method', '_token', 'id']);
         \${$tableSing}->fill(\$newData);
         \${$tableSing}->save();
         return redirect(route("$table.show", [\${$tableSing}->id]));
-    }
-
-    /**
-     * DELETE /$table/\{$tableSing}
-     * Remove the specified resource from storage.
-     *
-     * @param  $name \$$tableSing
-     * @return \Illuminate\Http\Response
-     * @throws \Exception
-     */
-    public function destroy($name \$$tableSing) {
-        \${$tableSing}->delete();
+HERE
+);
+        $phpfile->functions[] = mkfn('destroy', ["DELETE /$table/{{$tableSing}}", "Remove the specified resource from storage.", "", "@param  $name \$$tableSing", "@throws \Exception"], <<<HERE
+\${$tableSing}->delete();
         return redirect(route("$table.index"));
-    }
-}
-HERE;
-
-        return ob_get_clean();
+HERE
+);
+        return $phpfile->__toString();
     }
 
     public function genRoutes($table) {
