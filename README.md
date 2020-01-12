@@ -3,16 +3,21 @@
 <img src="http://forthebadge.com/images/badges/makes-people-smile.svg" height="20px" />
 <a href="https://travis-ci.org/PKeidel/dbtolaravel"><img src="https://travis-ci.org/PKeidel/dbtolaravel.svg" alt="Build Status"></a>
 
-[![Beerpay](https://beerpay.io/PKeidel/dbtolaravel/badge.svg?style=flat)](https://beerpay.io/PKeidel/dbtolaravel)
-
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel?ref=badge_shield)
+With this package it is possible to auto-generate a lot of needed files if you already have an existing database schema.
+Files that can be generated:
+* migration
+* model
+* views to view a single model, edit a single model and list all models
+* controller
+* route
+* seeder with existing data 
 
 ## Install
 
 ```shell
 composer require pkeidel/dbtolaravel
 ```
-DB2Laravel is just active if `APP_DEBUG=true` or `DBTOLARAVEL_ENABLED=true`
+DB2Laravel is only active if `APP_DEBUG=true` or `DBTOLARAVEL_ENABLED=true`
 
 ### < Laravel 5.5
 As always, add it to your app/config.php:
@@ -29,9 +34,10 @@ As always, add it to your app/config.php:
 // get you a coffee, you're done
 ```
 
-## Settings
-### .env file
-DBtoLaravel is enabled if `APP_DEBUG=true` or `DBTOLARAVEL_ENABLED=true` 
+### usage
+* visit yoururl/dbtolaravel, for example http://127.0.0.1/dbtolaravel
+* you can select a configured database connection
+* in the table you can create all files of view a diff to compare the file to an existing one
 
 ### Filter Tables
 Register a filter in your `AppServiceProvider.php`:
@@ -41,6 +47,7 @@ DBtoLaravelHelper::$FILTER = function($table) {
 };
 ```
 
-
-## License
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FPKeidel%2Fdbtolaravel?ref=badge_large)
+### Override type mapping
+```php
+DBtoLaravelHelper::$MAPPINGS = ['enum' => 'string', 'bytea' => 'binary', 'macaddr' => 'string'];
+```

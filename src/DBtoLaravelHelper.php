@@ -27,6 +27,7 @@ class DBtoLaravelHelper {
     private $arrayCache = [];
 
     public static $FILTER = NULL;
+    public static $MAPPINGS = ['enum' => 'string', 'bytea' => 'binary', 'macaddr' => 'string'];
 
     public function __construct($connection = NULL) {
         $this->connection = !empty($connection) ? $connection : config('database.default');
@@ -40,11 +41,9 @@ class DBtoLaravelHelper {
 	        $con = DB::connection($this->connection);
 
 	        // Set up some mappings
-	        // Allow user to type some own mappings into some textfield "enum=string"
 	        $platform = $con->getDoctrineConnection()->getDatabasePlatform();
-	        $platform->registerDoctrineTypeMapping('enum', 'string');
-            $platform->registerDoctrineTypeMapping('bytea', 'binary');
-            $platform->registerDoctrineTypeMapping('macaddr', 'string');
+	        foreach(self::$MAPPINGS as $dbtype => $doctrinetype)
+    	        $platform->registerDoctrineTypeMapping($dbtype, $doctrinetype);
 
 	        $this->manager    = $con->getDoctrineSchemaManager();
 
