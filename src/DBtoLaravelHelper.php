@@ -449,6 +449,8 @@ class DBtoLaravelHelper {
             }
         }
 
+        echo "        });";
+
         $content = ob_get_clean();
 
         $phpfile->functions[] = [
