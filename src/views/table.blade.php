@@ -133,7 +133,7 @@
                         writefile(table, type, document.editor.getValue());
                     }).prop('disabled', false);
 
-                    showCode(data.content, "application/x-httpd-php");
+                    showCode(data.content || '', "application/x-httpd-php");
                     modalBody.append(`<span>File: ${data.path}</span>`);
                 })
                 .error(endLoading);
