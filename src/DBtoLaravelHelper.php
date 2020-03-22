@@ -192,8 +192,7 @@ class DBtoLaravelHelper {
         return $ret;
     }
 
-    public function getArrayForTable($table, $withContent = false) {
-
+    public function getArrayForTable($table, $withContent = false, $type = NULL) {
         if(!empty($this->arrayCache[$table."-".($withContent ? 'yes' : 'no')]))
             return $this->arrayCache[$table."-".($withContent ? 'yes' : 'no')];
 
@@ -252,6 +251,11 @@ class DBtoLaravelHelper {
                 ]
             ];
         };
+
+        // if type is given, don't generate all possible things
+        if($type !== NULL) {
+            return $test($type, $table)[$type];
+        }
 
         return $this->arrayCache[$table."-".($withContent ? 'yes' : 'no')] = [
              'schema' => $this->getInfos($table),

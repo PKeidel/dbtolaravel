@@ -43,7 +43,7 @@ class DBtoLaravelController extends Controller {
     public function render($connection, $table, $type) {
         /** @var DBtoLaravelHelper $helper */
         $helper = app()->makeWith(DBtoLaravelHelper::class, ['connection' => $connection]);
-        return $helper->getArrayForTable($table, true)[$type];
+        return $helper->getArrayForTable($table, true, $type);
     }
 
     // GET {connection}/render/{table}/{type}/diff
