@@ -58,6 +58,7 @@ class PhpFileBuilder {
 				$content .= "    $v;\n";
 
         $content .= "\n";
+
         if(count($this->functions)) {
             foreach($this->functions as $fn) {
                 $fn['visibility'] = $fn['visibility'] ?? 'public';
@@ -70,7 +71,7 @@ class PhpFileBuilder {
                 }
                 if(!empty($fn['comment']))
                     $content .= "    // {$fn['comment']}\n";
-                $content .= "    {$fn['visibility']} function {$fn['name']}() {\n        {$fn['body']}\n    }\n\n";
+                $content .= "    {$fn['visibility']} function {$fn['name']}({$fn['args']}) {\n        {$fn['body']}\n    }\n\n";
             }
         }
 
@@ -78,4 +79,25 @@ class PhpFileBuilder {
 
 		return $content;
 	}
+
+    /**
+     * @param $fnname string
+     * @param $fargs string
+     * @param $doc array
+     * @param $body string
+     * @return array
+     */
+    public static function mkfun($fnname, $fargs, $doc, $body, $comment = '') {
+        if(in_array("", $doc, true))
+            $doc = array_merge($doc, ["@return \Illuminate\Http\Response"]);
+        else
+            $doc = array_merge($doc, ["", "@return \Illuminate\Http\Response"]);
+        return [
+            'name' => $fnname,
+            'args' => $fargs,
+            'doc' => $doc,
+            'body' => $body,
+            'comment' => $comment,
+        ];
+    }
 }
