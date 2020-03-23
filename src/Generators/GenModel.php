@@ -76,11 +76,7 @@ class GenModel {
             $cls = $info['cls'];
             $phpfile->doc[] = "@property-read \App\Models\\$cls ".Str::singular($info['tbl'])." // from belongsTo";
 
-            $phpfile->functions[] = [
-                'visibility' => 'public',
-                'name' => Str::singular($info['tbl']),
-                'body' => "return \$this->belongsTo('App\Models\\$cls', '{$info['col']}');"
-            ];
+            $phpfile->functions[] = PhpFileBuilder::mkfun(Str::singular($info['tbl']), '', [], "return \$this->belongsTo('App\Models\\$cls', '{$info['col']}');");
         }
 
         // belongsToMany
@@ -88,11 +84,7 @@ class GenModel {
             $tbl = DBtoLaravelHelper::genClassName($cls['tbl']);
             $phpfile->doc[] = "@property-read \App\Models\\$tbl ".strtolower($tbl)." // from belongsToMany";
 
-            $phpfile->functions[] = [
-                'visibility' => 'public',
-                'name' => strtolower($tbl),
-                'body' => "return \$this->belongsToMany('App\Models\\$tbl');"
-            ];
+            $phpfile->functions[] = PhpFileBuilder::mkfun(strtolower($tbl), '', [], "return \$this->belongsToMany('App\Models\\$tbl');");
         }
 
         // hasOne or hasMany
