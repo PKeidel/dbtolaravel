@@ -2,10 +2,8 @@
 
 namespace PKeidel\DBtoLaravel;
 
-use cogpowered\FineDiff\Granularity\GranularityInterface;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\Column;
-use Doctrine\DBAL\Types\IntegerType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Connection;
@@ -17,6 +15,8 @@ use PKeidel\DBtoLaravel\Generators\GenController;
 use PKeidel\DBtoLaravel\Generators\GenMigration;
 use PKeidel\DBtoLaravel\Generators\GenModel;
 use PKeidel\DBtoLaravel\Generators\GenSeeder;
+use Jfcherng\Diff\DiffHelper;
+
 
 /*
 TODO Support morphs
@@ -202,9 +202,9 @@ class DBtoLaravelHelper {
         if(!empty($this->arrayCache[$table."-".($withContent ? 'yes' : 'no')]))
             return $this->arrayCache[$table."-".($withContent ? 'yes' : 'no')];
 
-        $diff = new \cogpowered\FineDiff\Diff(new \cogpowered\FineDiff\Granularity\Character());
+        // $diff = new \cogpowered\FineDiff\Diff(new \cogpowered\FineDiff\Granularity\Character());
 
-        $test = function($key, $tbl) use($diff, $withContent) {
+        $test = function($key, $tbl) use($withContent) { // $diff, 
             $fn = "gen".ucfirst($key);
             $path = 'na';
             switch($key) {
@@ -225,7 +225,7 @@ class DBtoLaravelHelper {
                     }
                     break;
                 case 'routes':
-                    $path = "web.php";
+                    $path = "routes/web.php";
                     break;
                 case 'controller':
                     $path = app_path("Http/Controllers/".self::genClassName($tbl)."Controller.php");
@@ -243,16 +243,26 @@ class DBtoLaravelHelper {
                     $path = resource_path("views/{$tbl}/generated_list.blade.php");
                     break;
                 case 'seeder':
-                    $path = database_path("seeds/".self::genClassName($tbl)."Seeder.php");
+                    $path = database_path("seeders/".self::genClassName($tbl)."Seeder.php");
                     break;
             }
             $content = $withContent ? $this->$fn($tbl) : '';
+
+            $diffData = false;
+            if($withContent && file_exists($path)) {
+                $differOptions = []; // @see https://github.com/jfcherng/php-diff
+                $rendererOptions = [];
+                $diffData = DiffHelper::calculate(
+                    //                                  Combined, Inline, JsonHtml, SideBySide
+                    file_get_contents($path), $content, 'SideBySide', $differOptions, $rendererOptions);
+            }
+
             return [
                 $key => [
                     'path' => $path,
-                    'exists' => $exists = file_exists($path),
+                    'exists' => file_exists($path),
                     'content' => $withContent ? $content : false,
-                    'diff' => $withContent && file_exists($path) ? $diff->render(file_get_contents($path), $content) : false,
+                    'diff' => $diffData, // $withContent && file_exists($path) ? $diff->render(file_get_contents($path), $content) : false,
                     'different' => file_exists($path) ? (file_get_contents($path) !== $content) : false,
                 ]
             ];

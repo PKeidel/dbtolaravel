@@ -73,6 +73,7 @@
             padding-top: 20%;
             z-index: 9999;
         }
+        {{ \Jfcherng\Diff\DiffHelper::getStyleSheet() }}
     </style>
 @endsection
 @section('script')
@@ -155,15 +156,15 @@
                     // showCode(data.content, 'diff', true);
                     // modalBody.append(`<span>File: ${data.path}</span>`);
 
-                    let code = $('<div></div>');
+                    let code = $('<pre></pre>');
                     code.css('border', '1px solid silver').css('border-radius', '5px').css('padding', '5px').css('font-family', 'monospace');
-                    code.html(data.diff.replace(/\n/g, '<br>').replace(/ /g, '&nbsp;'));
+                    data.diff && code.html(data.diff); // .replace(/\n/g, '<br>').replace(/ /g, '&nbsp;')
                     modalBody.children().remove();
                     modalBody.append(code);
                     modalBody.append(`<div>File: ${data.path}</div>`);
-                    modalBody.append(`<div><del>red will be removed</del></div>`);
-                    modalBody.append(`<div><ins>green will be added</ins></div>`);
-                    hljs.highlightBlock(code.get(0));
+                    // modalBody.append(`<div><del>red will be removed</del></div>`);
+                    // modalBody.append(`<div><ins>green will be added</ins></div>`);
+                    // hljs.highlightBlock(code.get(0));
                     modal.modal({show:true});
                 })
                 .error(endLoading);
@@ -302,20 +303,21 @@
                 <td>
                     @if($d['controller']['exists'] && !$d['controller']['different'])
                         <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
-{{--                    @elseif($d['controller']['exists'])--}}
-                    @else
+                    @elseif($d['controller']['exists'])
                         <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'controller')"><i class="fas fa-not-equal"></i></button>
                         <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'controller')"><i class="fas fa-plus"></i></button>
+                    @else
+                        <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'model')"><i class="fas fa-plus"></i></button>
                     @endif
                 </td>
                 <td>
-                    @if($d['routes']['exists'] && !$d['routes']['different'])
+                    {{-- @if($d['routes']['exists'] && !$d['routes']['different'])
                         <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
                     @elseif($d['routes']['exists'])
                         <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'routes')"><i class="fas fa-not-equal"></i></button>
-                    @else
+                    @else --}}
                         <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'routes')"><i class="fas fa-plus"></i></button>
-                    @endif
+                    {{-- @endif --}}
                 </td>
                 <td>
                     @if($d['seeder']['exists'] && !$d['seeder']['different'])
@@ -332,7 +334,7 @@
     </table>
 
     <div id="myModal" class="modal fade" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-dialog modal-xl" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Modal title</h5>
