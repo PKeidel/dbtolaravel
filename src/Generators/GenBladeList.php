@@ -22,14 +22,14 @@ class GenBladeList {
                 echo "  <td>{{ \${$letter}->$col }}</td>\n";
             }
         }
-        echo "  <td>";
-        echo "@can('{$table}_show')";
-        echo "<a role=\"button\" href=\"{{ route('{$table}.show', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-eye\"></i></a>";
-        echo "@endcan";
-        echo "@can('{$table}_edit')";
-        echo "<a role=\"button\" href=\"{{ route('{$table}.edit', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-pencil\"></i></a>";
-        echo "@endcan";
-        echo "</td>\n";
+        echo "  <td>\n";
+        echo "    @can('{$table}_show')\n";
+        echo "      <a role=\"button\" href=\"{{ route('{$table}.show', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-eye\"></i></a>\n";
+        echo "    @endcan\n";
+        echo "    @can('{$table}_edit')\n";
+        echo "      <a role=\"button\" href=\"{{ route('{$table}.edit', \${$letter}->id) }}\" class=\"btn btn-default btn-sm\"><i class=\"fa fa-pencil\"></i></a>\n";
+        echo "    @endcan\n";
+        echo "  </td>\n";
         echo "  </tr>\n";
         echo "@endforeach\n";
         echo "</table>\n";
