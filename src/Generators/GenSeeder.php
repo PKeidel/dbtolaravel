@@ -11,12 +11,12 @@ class GenSeeder {
     public static function generate($table, $classname, $seederClass, $tabledata) {
         $phpfile = new PhpFileBuilder($seederClass);
 
-        $phpfile->imports[] = 'Illuminate\Database\Seeder';
-
         $phpfile->imports[] = "App\Models\\$classname";
+        $phpfile->imports[] = 'Illuminate\Database\Seeder';
+        $phpfile->imports[] = "Illuminate\Support\Facades\DB";
 
         $phpfile->doc[] = "Seeder for table $table";
-        $phpfile->doc[] = "TODO: Don't forget to include `\$this->call($seederClass::class);` in DatabaseSeeder.php::run() method";
+        $phpfile->doc[] = "TODO: Don't forget to include `\$this->call(\\$seederClass::class);` in DatabaseSeeder.php::run() method";
 
         $phpfile->extends = 'Seeder';
 
