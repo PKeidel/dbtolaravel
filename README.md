@@ -19,21 +19,6 @@ composer require pkeidel/dbtolaravel
 ```
 DB2Laravel is only active if `APP_DEBUG=true` or `DBTOLARAVEL_ENABLED=true`
 
-### < Laravel 5.5
-As always, add it to your app/config.php:
-
-```php
-'providers' => [
-    // ....
-    PKeidel\DBtoLaravel\Providers\DBtoLaravelServiceProvider::class,
-]
-```
-
-### \>= Laravel 5.5
-```php
-// get you a coffee, you're done
-```
-
 ### usage
 * visit yoururl/dbtolaravel, for example http://127.0.0.1/dbtolaravel
 * you can select a configured database connection

@@ -71,6 +71,7 @@ class PhpFileBuilder {
                 }
                 if(!empty($fn['comment']))
                     $content .= "    // {$fn['comment']}\n";
+				$fn['args'] ??= '';
                 $content .= "    {$fn['visibility']} function {$fn['name']}({$fn['args']}) {\n        {$fn['body']}\n    }\n\n";
             }
         }
