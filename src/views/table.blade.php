@@ -307,17 +307,11 @@
                         <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'controller')"><i class="fas fa-not-equal"></i></button>
                         <button id="btn_{{ $table }}_controller" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'controller')"><i class="fas fa-plus"></i></button>
                     @else
-                        <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'model')"><i class="fas fa-plus"></i></button>
+                        <button id="btn_{{ $table }}_model" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'controller')"><i class="fas fa-plus"></i></button>
                     @endif
                 </td>
                 <td>
-                    {{-- @if($d['routes']['exists'] && !$d['routes']['different'])
-                        <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-success" disabled><i class="fas fa-check"></i></button>
-                    @elseif($d['routes']['exists'])
-                        <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-warning" onclick="showDiffDialog('{{ $table }}', 'routes')"><i class="fas fa-not-equal"></i></button>
-                    @else --}}
-                        <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'routes')"><i class="fas fa-plus"></i></button>
-                    {{-- @endif --}}
+                    <button id="btn_{{ $table }}_routes" class="btn btn-sm btn-light text-info" onclick="showDialog('{{ $table }}', 'routes')"><i class="fas fa-plus"></i></button>
                 </td>
                 <td>
                     @if($d['seeder']['exists'] && !$d['seeder']['different'])
