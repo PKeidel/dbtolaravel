@@ -172,7 +172,9 @@ class GenMigration {
 
         $content = ob_get_clean();
 
-        $phpfile->functions[] = PhpFileBuilder::mkfun('up', '', ['Run the migrations.', '@return void'], $content);
+        $phpfile->functions[] = [
+            'returnType' => 'void'
+        ] + PhpFileBuilder::mkfun('up', '', ['Run the migrations.', 'no-doc-return-type'], $content);
 
         return $phpfile->__toString();
     }

@@ -62,6 +62,8 @@ class PhpFileBuilder {
         if(count($this->functions)) {
             foreach($this->functions as $fn) {
                 $fn['visibility'] = $fn['visibility'] ?? 'public';
+                $returnType = \trim($fn['returnType'] ?? '');
+                $returnType = $returnType === '' ? '' : (': ' . $returnType);
                 $doc = "";
                 foreach($fn['doc'] ?? [] as $c)
                     $doc .= "     * $c\n";
@@ -72,7 +74,7 @@ class PhpFileBuilder {
                 if(!empty($fn['comment']))
                     $content .= "    // {$fn['comment']}\n";
 				$fn['args'] ??= '';
-                $content .= "    {$fn['visibility']} function {$fn['name']}({$fn['args']}) {\n        {$fn['body']}\n    }\n\n";
+                $content .= "    {$fn['visibility']} function {$fn['name']}({$fn['args']}){$returnType} {\n        {$fn['body']}\n    }\n\n";
             }
         }
 
@@ -82,14 +84,16 @@ class PhpFileBuilder {
 	}
 
     /**
-     * @param $fnname string
-     * @param $fargs string
-     * @param $doc array
-     * @param $body string
+     * @param string $fnname
+     * @param string $fargs
+     * @param array $doc
+     * @param string $body
      * @return array
      */
-    public static function mkfun($fnname, $fargs, $doc, $body, $comment = '') {
-        if(in_array("", $doc, true))
+    public static function mkfun($fnname, $fargs, $doc, $body, $comment = ''): array {
+        if($noDocReturn = array_search("no-doc-return-type", $doc, true) !== false)
+            unset($doc[$noDocReturn]);
+        elseif(in_array("", $doc, true))
             $doc = array_merge($doc, ["@return \Illuminate\Http\Response"]);
         else
             $doc = array_merge($doc, ["", "@return \Illuminate\Http\Response"]);
