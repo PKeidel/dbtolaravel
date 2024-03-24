@@ -90,19 +90,19 @@ class PhpFileBuilder {
      * @param string $body
      * @return array
      */
-    public static function mkfun($fnname, $fargs, $doc, $body, $comment = ''): array {
-        if($noDocReturn = array_search("no-doc-return-type", $doc, true) !== false)
-            unset($doc[$noDocReturn]);
-        elseif(in_array("", $doc, true))
-            $doc = array_merge($doc, ["@return \Illuminate\Http\Response"]);
-        else
-            $doc = array_merge($doc, ["", "@return \Illuminate\Http\Response"]);
+    public static function mkfun(
+        string $fnname,
+        string $fargs,
+        array $doc,
+        string $body,
+        string $returnType = ''
+    ): array {
         return [
             'name' => $fnname,
             'args' => $fargs,
             'doc' => $doc,
             'body' => $body,
-            'comment' => $comment,
+            'returnType' => $returnType,
         ];
     }
 }
