@@ -204,7 +204,7 @@ class DBtoLaravelHelper {
 
         // $diff = new \cogpowered\FineDiff\Diff(new \cogpowered\FineDiff\Granularity\Character());
 
-        $test = function($key, $tbl) use($withContent) { // $diff, 
+        $test = function($key, $tbl) use($withContent) { // $diff,
             $fn = "gen".ucfirst($key);
             $path = 'na';
             switch($key) {
@@ -247,15 +247,20 @@ class DBtoLaravelHelper {
                     break;
             }
             $content = $withContent ? $this->$fn($tbl) : '';
+            $content = \trim($content);
+            $fileContent = file_exists($path) ? \trim(file_get_contents($path)) : null;
 
             $diffData = false;
             if($withContent && file_exists($path)) {
                 $differOptions = []; // @see https://github.com/jfcherng/php-diff
                 $rendererOptions = [];
                 $diffData = DiffHelper::calculate(
-                    //                                  Combined, Inline, JsonHtml, SideBySide
-                    file_get_contents($path), $content, 'SideBySide', $differOptions, $rendererOptions);
+                    $fileContent, $content, 'SideBySide', $differOptions, $rendererOptions);
             }
+
+            $different = file_exists($path)
+                ? $fileContent !== $content
+                : false;
 
             return [
                 $key => [
@@ -263,7 +268,7 @@ class DBtoLaravelHelper {
                     'exists' => file_exists($path),
                     'content' => $withContent ? $content : false,
                     'diff' => $diffData, // $withContent && file_exists($path) ? $diff->render(file_get_contents($path), $content) : false,
-                    'different' => file_exists($path) ? (file_get_contents($path) !== $content) : false,
+                    'different' => $different,
                 ]
             ];
         };

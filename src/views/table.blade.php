@@ -247,7 +247,7 @@
             <th></th>
             <th></th>
         </tr>
-        @foreach($helper->getArrayAll() as $table => $data)
+        @foreach($helper->getArrayAll(true) as $table => $data)
             @php
             $d = \Illuminate\Support\Arr::except($data, ['schema']);
             @endphp

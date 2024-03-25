@@ -66,13 +66,13 @@ class GenSeeder {
 
         $content .= "\n";
         $content .= "            DB::commit();\n";
-        $content .= "        } catch(Exception \$e) {\n";
+        $content .= "        } catch(\Throwable \$t) {\n";
         $content .= "            DB::rollback();\n";
-        $content .= "            echo \$e;\n";
+        $content .= "            echo \$t;\n";
         $content .= "            exit;\n";
         $content .= "        }";
 
-        $phpfile->functions[] = PhpFileBuilder::mkfun('run', '', [], $content);
+        $phpfile->functions[] = PhpFileBuilder::mkfun('run', '', [], $content, returnType: 'void');
 
         return $phpfile->__toString();
     }

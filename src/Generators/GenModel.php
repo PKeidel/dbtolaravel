@@ -100,8 +100,8 @@ class GenModel {
             $clsName = $cls['cls'];
             $phpfile->doc[] = "@property-read \App\Models\\$clsName {$cls['tbl']} // from hasOneOrMany";
 
-            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['sgl'], '', [], "return \$this->hasOne('App\Models\\$clsName');", "TODO use {$cls['sgl']}() OR {$cls['tbl']}(), NOT both!");
-            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['tbl'], '', [], "return \$this->hasMany('App\Models\\$clsName');");
+            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['sgl'], '', ["", "@return \Illuminate\Http\Response"], "return \$this->hasOne('App\Models\\$clsName');", "TODO use {$cls['sgl']}() OR {$cls['tbl']}(), NOT both!");
+            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['tbl'], '', ["", "@return \Illuminate\Http\Response"], "return \$this->hasMany('App\Models\\$clsName');");
         }
         $phpfile->doc[] = "@package App\Models";
 
