@@ -37,30 +37,30 @@ class GenModel {
             switch($col->type) {
                 case 'integer':
                 case 'bigint':
-                    $phpfile->doc[] = "@property int$nullable $colname";
+                    $phpfile->doc[] = "@property int$nullable \$$colname";
                     $casts[$colname] = 'int';
                     break;
                 case 'decimal':
-                    $phpfile->doc[] = "@property float$nullable $colname";
+                    $phpfile->doc[] = "@property float$nullable \$$colname";
                     $casts[$colname] = 'float';
                     break;
                 case 'datetime':
-                    $phpfile->doc[] = "@property Carbon$nullable $colname";
+                    $phpfile->doc[] = "@property Carbon$nullable \$$colname";
                     $casts[$colname] = 'datetime';
                     break;
                 case 'text':
-                    $phpfile->doc[] = "@property string$nullable $colname";
+                    $phpfile->doc[] = "@property string$nullable \$$colname";
                     break;
                 case 'boolean':
                     $casts[$colname] = 'boolean';
-                    $phpfile->doc[] = "@property $col->type$nullable $colname";
+                    $phpfile->doc[] = "@property $col->type$nullable \$$colname";
                     break;
                 case 'json':
                     $casts[$colname] = 'json';
-                    $phpfile->doc[] = "@property json$nullable $colname";
+                    $phpfile->doc[] = "@property json$nullable \$$colname";
                     break;
                 default:
-                    $phpfile->doc[] = "@property $col->type$nullable $colname"; // unknown:
+                    $phpfile->doc[] = "@property $col->type$nullable \$$colname"; // unknown:
                     break;
             }
         }
@@ -74,7 +74,7 @@ class GenModel {
         // belongsTo
         foreach($infos['meta']['belongsTo'] as $info) {
             $cls = $info['cls'];
-            $phpfile->doc[] = "@property-read \App\Models\\$cls ".Str::singular($info['tbl'])." // from belongsTo";
+            $phpfile->doc[] = "@property-read \App\Models\\$cls \$".Str::singular($info['tbl'])." // from belongsTo";
 
             $phpfile->functions[] = [
                 'visibility' => 'public',
@@ -86,7 +86,7 @@ class GenModel {
         // belongsToMany
         foreach($infos['meta']['belongsToMany'] as $cls) {
             $tbl = DBtoLaravelHelper::genClassName($cls['tbl']);
-            $phpfile->doc[] = "@property-read \App\Models\\$tbl ".strtolower($tbl)." // from belongsToMany";
+            $phpfile->doc[] = "@property-read \App\Models\\$tbl \$".strtolower($tbl)." // from belongsToMany";
 
             $phpfile->functions[] = [
                 'visibility' => 'public',
@@ -98,7 +98,7 @@ class GenModel {
         // hasOne or hasMany
         foreach($infos['meta']['hasOneOrMany'] as $cls) {
             $clsName = $cls['cls'];
-            $phpfile->doc[] = "@property-read \App\Models\\$clsName {$cls['tbl']} // from hasOneOrMany";
+            $phpfile->doc[] = "@property-read \App\Models\\$clsName \${$cls['tbl']} // from hasOneOrMany";
 
             $phpfile->functions[] = PhpFileBuilder::mkfun($cls['sgl'], '', ["", "@return \Illuminate\Http\Response"], "return \$this->hasOne('App\Models\\$clsName');", "TODO use {$cls['sgl']}() OR {$cls['tbl']}(), NOT both!");
             $phpfile->functions[] = PhpFileBuilder::mkfun($cls['tbl'], '', ["", "@return \Illuminate\Http\Response"], "return \$this->hasMany('App\Models\\$clsName');");
