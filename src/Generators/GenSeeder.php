@@ -5,6 +5,7 @@ namespace PKeidel\DBtoLaravel\Generators;
 
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use PKeidel\DBtoLaravel\PhpFileBuilder;
 
 class GenSeeder {
@@ -24,7 +25,12 @@ class GenSeeder {
         $content .= "            DB::beginTransaction();\n";
         $content .= "\n";
 
-        foreach($tabledata as $row) {
+        foreach($tabledata as $i => $row) {
+            if ($i > 20) {
+                $content .= "\n// FIXME This not not meant to use with a ton of data! Use mysqldump!\n";
+                break;
+            }
+
 //            $content .= "            // ".json_encode($row)."\n";
             $arr = [];
             foreach($row as $key => $value) {
@@ -53,12 +59,15 @@ class GenSeeder {
                         }
                     }
                 } else {
-                    foreach($row as $key => $value)
-                        if(!in_array($key, ['id', 'created_at', 'updated_at', 'password']) && $value !== NULL)
-                            if(is_numeric($value))
+                    foreach($row as $key => $value) {
+                        if (!in_array($key, ['id', 'created_at', 'updated_at', 'password']) && $value !== null) {
+                            if (is_numeric($value)) {
                                 $arr[] = "'$key' => ".floatval($value);
-                            else
+                            } else {
                                 $arr[] = "'$key' => \"".str_replace(['"', "\r", "\n"], ['\"', '', '\n'], $value)."\"";
+                            }
+                        }
+                    }
                 }
             }
             $content .= "            $classname::create([".implode(', ', $arr)."]);\n";

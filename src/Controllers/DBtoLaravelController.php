@@ -23,11 +23,12 @@ class DBtoLaravelController extends Controller {
         if($connection == NULL)
             $connection = request()->has('connection') ? request()->get('connection') : config('database.default');
 
-        if(config('database.connections.'.$connection) == null)
+        if(config('database.connections.'.$connection) == null) {
             return view('dbtolaravel::error-wrongconnection', [
                 'message' => "Connection '$connection' not configured",
                 'connections' => array_keys(config('database.connections'))
             ]);
+        }
 
         /** @var DBtoLaravelHelper $helper */
         $helper = app()->makeWith(DBtoLaravelHelper::class, ['connection' => $connection]);

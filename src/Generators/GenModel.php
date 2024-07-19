@@ -9,6 +9,7 @@ use PKeidel\DBtoLaravel\PhpFileBuilder;
 class GenModel {
 
     public static function generate($table, string $name, $infos) {
+        $name = Str::plural($name);
         $phpfile = new PhpFileBuilder($name, 'App\Models');
 
         $phpfile->doc[] = "Model $name";
@@ -31,36 +32,37 @@ class GenModel {
         // PHPdoc
         foreach ($infos['cols'] as $colname => $col) {
             $col = (object) $col;
+            $col->type = strtolower($col->type);
             if(!in_array($colname, ['id', 'created_at', 'updated_at', 'deleted_at']))
                 $fillable[] = $colname;
-            $nullable = !empty($col->null) ? '|null' : '';
+            $nullable = !empty($col->null) ? '?' : '';
             switch($col->type) {
                 case 'integer':
                 case 'bigint':
-                    $phpfile->doc[] = "@property int$nullable \$$colname";
+                    $phpfile->doc[] = "@property {$nullable}int \$$colname";
                     $casts[$colname] = 'int';
                     break;
                 case 'decimal':
-                    $phpfile->doc[] = "@property float$nullable \$$colname";
+                    $phpfile->doc[] = "@property {$nullable}float \$$colname";
                     $casts[$colname] = 'float';
                     break;
                 case 'datetime':
-                    $phpfile->doc[] = "@property Carbon$nullable \$$colname";
+                    $phpfile->doc[] = "@property {$nullable}Carbon \$$colname";
                     $casts[$colname] = 'datetime';
                     break;
                 case 'text':
-                    $phpfile->doc[] = "@property string$nullable \$$colname";
+                    $phpfile->doc[] = "@property {$nullable}string \$$colname";
                     break;
                 case 'boolean':
                     $casts[$colname] = 'boolean';
-                    $phpfile->doc[] = "@property $col->type$nullable \$$colname";
+                    $phpfile->doc[] = "@property {$nullable}$col->type \$$colname";
                     break;
                 case 'json':
                     $casts[$colname] = 'json';
-                    $phpfile->doc[] = "@property json$nullable \$$colname";
+                    $phpfile->doc[] = "@property {$nullable}json \$$colname";
                     break;
                 default:
-                    $phpfile->doc[] = "@property $col->type$nullable \$$colname"; // unknown:
+                    $phpfile->doc[] = "@property {$nullable}$col->type \$$colname"; // unknown:
                     break;
             }
         }
@@ -79,19 +81,21 @@ class GenModel {
             $phpfile->functions[] = [
                 'visibility' => 'public',
                 'name' => Str::singular($info['tbl']),
-                'body' => "return \$this->belongsTo('App\Models\\$cls', '{$info['col']}');"
+                'body' => "return \$this->belongsTo(\App\Models\\$cls::class, '{$info['col']}');",
+                'returnType' => '\Illuminate\Database\Eloquent\Relations\BelongsTo',
             ];
         }
 
         // belongsToMany
         foreach($infos['meta']['belongsToMany'] as $cls) {
             $tbl = DBtoLaravelHelper::genClassName($cls['tbl']);
-            $phpfile->doc[] = "@property-read \App\Models\\$tbl \$".strtolower($tbl)." // from belongsToMany";
+            $plural = Str::plural($tbl);
+            $phpfile->doc[] = "@property-read \App\Models\\$tbl \$".strtolower($plural)." // from belongsToMany";
 
             $phpfile->functions[] = [
                 'visibility' => 'public',
-                'name' => strtolower($tbl),
-                'body' => "return \$this->belongsToMany('App\Models\\$tbl');"
+                'name' => strtolower($plural),
+                'body' => "return \$this->belongsToMany(\App\Models\\$tbl::class);"
             ];
         }
 
@@ -100,10 +104,9 @@ class GenModel {
             $clsName = $cls['cls'];
             $phpfile->doc[] = "@property-read \App\Models\\$clsName \${$cls['tbl']} // from hasOneOrMany";
 
-            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['sgl'], '', ["", "@return \Illuminate\Http\Response"], "return \$this->hasOne('App\Models\\$clsName');", "TODO use {$cls['sgl']}() OR {$cls['tbl']}(), NOT both!");
-            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['tbl'], '', ["", "@return \Illuminate\Http\Response"], "return \$this->hasMany('App\Models\\$clsName');");
+            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['sgl'], '', ["TODO use {$cls['sgl']}() OR {$cls['tbl']}(), NOT both!"], "return \$this->hasOne(\App\Models\\$clsName::class);", '\Illuminate\Database\Eloquent\Relations\HasOne');
+            $phpfile->functions[] = PhpFileBuilder::mkfun(Str::plural($cls['tbl']), '', [], "return \$this->hasMany(\App\Models\\$clsName::class);", '\Illuminate\Database\Eloquent\Relations\HasMany');
         }
-        $phpfile->doc[] = "@package App\Models";
 
         // Variables
         if(count($fillable))
