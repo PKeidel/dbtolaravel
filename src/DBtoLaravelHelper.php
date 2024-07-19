@@ -2,11 +2,13 @@
 
 namespace PKeidel\DBtoLaravel;
 
+use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\Column;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\Connection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use PKeidel\DBtoLaravel\Generators\GenBladeEdit;
 use PKeidel\DBtoLaravel\Generators\GenBladeList;
@@ -24,34 +26,39 @@ TODO Support morphs
 
 class DBtoLaravelHelper {
 
-    private $infos  = [];
+    private array $infos  = [];
 
-    private $connection;
-    private $driver;
-    /** @var  AbstractSchemaManager $manager */
-    private $manager;
-    private $arrayCache = [];
+    private string $connection;
+    private AbstractSchemaManager $manager;
+    private array $arrayCache = [];
 
     public static $FILTER = NULL;
-    public static $MAPPINGS = ['enum' => 'string', 'bytea' => 'binary', 'macaddr' => 'string'];
+    public static array $MAPPINGS = ['enum' => 'string', 'bytea' => 'binary', 'macaddr' => 'string'];
 
     public function __construct($connection = NULL) {
         $this->connection = !empty($connection) ? $connection : config('database.default');
-        $this->driver     = config("database.connections.$connection")['driver'];
 
         if(request()->has('resetcache'))
             Cache::forget("dbtolaravel:tables:1:$connection");
 
-        $infos = Cache::remember("dbtolaravel:tables:1:$connection", 300, function() {
-	        /** @var Connection $con */
-	        $con = DB::connection($this->connection);
+        $infos = Cache::remember("dbtolaravel:tables:1:$connection", 300, function() use($connection) {
+            $cfg = config("database.connections.$connection");
+            $connectionParams = [
+                'dbname'   => $cfg['database'],
+                'user'     => $cfg['username'],
+                'password' => $cfg['password'],
+                'host'     => $cfg['host'],
+                'port'     => $cfg['port'],
+                'driver'   => 'pdo_mysql',
+            ];
+            $con = DriverManager::getConnection($connectionParams);
 
 	        // Set up some mappings
-	        $platform = $con->getDoctrineConnection()->getDatabasePlatform();
+	        $platform = $con->getDatabasePlatform();
 	        foreach(self::$MAPPINGS as $dbtype => $doctrinetype)
     	        $platform->registerDoctrineTypeMapping($dbtype, $doctrinetype);
 
-	        $this->manager    = $con->getDoctrineSchemaManager();
+	        $this->manager    = $con->createSchemaManager();
 
 	        $infos  = [];
 	        $tables = $this->manager->listTableNames();
@@ -63,17 +70,11 @@ class DBtoLaravelHelper {
 		        $belongsTo     = [];
 		        $belongsToMany = [];
 		        $morph         = [];
-		        $colNames      = array_map(function($c) {
-		            return $c->getName();
-                }, $colsTmp);
+		        $colNames      = array_map(fn($c) => $c->getName(), $colsTmp);
 
-		        // $cols verarbeiten und $meta generieren
-		        /** @var Column $col */
 		        foreach($colsTmp as $col) {
 			        // morph || belongsTo
-			        // Wenn der Name %_id ist, dann ist es ein belongsTo zu der anderen Tabelle
-			        // außer es existiert auch eine %_type Spalte, dann ist es ein morph
-			        if(substr($col->getName(), -3) === '_id') {
+			        if(str_ends_with($col->getName(), '_id')) {
                         $tblName = substr($col->getName(), 0, -3);
 			        	if(in_array("{$tblName}_type", $colNames)) {
                             $morph[] = [
@@ -93,7 +94,7 @@ class DBtoLaravelHelper {
 			        }
 
                     $cols[$col->getName()] = [
-                        'type'          => $col->getType()->getName(),
+                        'type'          => $col->getType()->getBindingType()->name,
                         'len'           => $col->getLength(),
                         'precision'     => $col->getPrecision(),
                         'scale'         => $col->getScale(),
@@ -134,13 +135,8 @@ class DBtoLaravelHelper {
 		        ], 'cols' => $cols];
 	        }
 
-	        // Diesen Stand auslagern in eigene function
-            // um ggf. mehr infos per DDL sammeln zu können
-//	        dd($infos);
-
 	        // Und noch ne Runde, für die Verknüpfungen
 	        foreach($tables as $tbl) {
-		        $islinktable = false;
 		        $inf = explode('_', $tbl);
 		        if(count($inf) === 2 && in_array($inf[0], $tables) && in_array($inf[1], $tables)) {
 			        $infos[$tbl]['meta']['islinktable'] = true;
@@ -156,7 +152,7 @@ class DBtoLaravelHelper {
 	        }
 
 	        // hasMany hinzufügen:
-	        // - die in ['foreign'] genannten Tabellen haben ein hasMany auf die akuelle Tabelle
+	        // - die in ['foreign'] genannten Tabellen haben ein hasMany auf die aktuelle Tabelle
 	        foreach ($infos as $tbl => $info) {
 		        foreach($info['meta']['foreign'] as $foreign) {
 			        if(!($infos[$tbl]['meta']['islinktable']))
