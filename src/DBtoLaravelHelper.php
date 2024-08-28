@@ -86,7 +86,7 @@ class DBtoLaravelHelper {
 			        	elseif(in_array($tblName, $tables)) {
 			        	    $belongsTo[] = [
                                 'tbl' => $tblName,
-                                'cls' => ucfirst($tblName),
+                                'cls' => self::genClassName($tblName),
                                 'sgl' => Str::singular($tblName),
                                 'col' => $col->getName(),
                             ];
@@ -158,7 +158,7 @@ class DBtoLaravelHelper {
 			        if(!($infos[$tbl]['meta']['islinktable']))
 				        $infos[$foreign['refTbl']]['meta']['hasOneOrMany'][] = [
 				        	'tbl' => $tbl,
-				        	'cls' => ucfirst($tbl),
+				        	'cls' => self::genClassName($tbl),
 					        'sgl' => Str::singular($tbl)
 				        ];
 		        }
@@ -175,8 +175,8 @@ class DBtoLaravelHelper {
 	    $this->infos = self::$FILTER === NULL ? $infos : array_filter($infos, self::$FILTER, ARRAY_FILTER_USE_KEY);
     }
 
-	public static function genClassName($table) {
-		return ucfirst(Str::camel($table));
+	public static function genClassName($table): string {
+		return ucfirst(Str::camel(Str::plural($table)));
     }
 
 	private function genMigrationClassName($table) {

@@ -40,7 +40,6 @@ class GenModel {
                 case 'integer':
                 case 'bigint':
                     $phpfile->doc[] = "@property {$nullable}int \$$colname";
-                    $casts[$colname] = 'int';
                     break;
                 case 'decimal':
                     $phpfile->doc[] = "@property {$nullable}float \$$colname";
@@ -54,12 +53,11 @@ class GenModel {
                     $phpfile->doc[] = "@property {$nullable}string \$$colname";
                     break;
                 case 'boolean':
-                    $casts[$colname] = 'boolean';
                     $phpfile->doc[] = "@property {$nullable}$col->type \$$colname";
                     break;
                 case 'json':
-                    $casts[$colname] = 'json';
                     $phpfile->doc[] = "@property {$nullable}json \$$colname";
+                    $casts[$colname] = 'json';
                     break;
                 default:
                     $phpfile->doc[] = "@property {$nullable}$col->type \$$colname"; // unknown:
@@ -67,21 +65,17 @@ class GenModel {
             }
         }
 
-        //	    // hasMany
-//	    foreach($infos['meta']['hasMany'] as $cls) {
-//		    $tbl = $this->genClassName($cls['tbl']);
-//		    $phpfile->doc[] = "@property-read Collection ".camel_case($cls['fnc'])." // from hasMany";
-//	    }
-
         // belongsTo
         foreach($infos['meta']['belongsTo'] as $info) {
-            $cls = $info['cls'];
-            $phpfile->doc[] = "@property-read \App\Models\\$cls \$".Str::singular($info['tbl'])." // from belongsTo";
+            $singlular = Str::camel(Str::singular($info['tbl']));
+            $plural = Str::camel(Str::plural($info['tbl']));
+            $className = ucfirst(Str::camel($plural));
+            $phpfile->doc[] = "@property-read \App\Models\\$className \${$singlular} // from belongsTo";
 
             $phpfile->functions[] = [
                 'visibility' => 'public',
-                'name' => Str::singular($info['tbl']),
-                'body' => "return \$this->belongsTo(\App\Models\\$cls::class, '{$info['col']}');",
+                'name' => $singlular,
+                'body' => "return \$this->belongsTo(\App\Models\\$className::class, '{$info['col']}');",
                 'returnType' => '\Illuminate\Database\Eloquent\Relations\BelongsTo',
             ];
         }
@@ -90,11 +84,12 @@ class GenModel {
         foreach($infos['meta']['belongsToMany'] as $cls) {
             $tbl = DBtoLaravelHelper::genClassName($cls['tbl']);
             $plural = Str::plural($tbl);
-            $phpfile->doc[] = "@property-read \App\Models\\$tbl \$".strtolower($plural)." // from belongsToMany";
+            $propName = Str::camel(strtolower($plural));
+            $phpfile->doc[] = "@property-read \App\Models\\$plural \${$propName} // from belongsToMany";
 
             $phpfile->functions[] = [
                 'visibility' => 'public',
-                'name' => strtolower($plural),
+                'name' => $propName,
                 'body' => "return \$this->belongsToMany(\App\Models\\$tbl::class);"
             ];
         }
@@ -102,16 +97,19 @@ class GenModel {
         // hasOne or hasMany
         foreach($infos['meta']['hasOneOrMany'] as $cls) {
             $clsName = $cls['cls'];
-            $phpfile->doc[] = "@property-read \App\Models\\$clsName \${$cls['tbl']} // from hasOneOrMany";
+            $sglPropName = Str::camel($cls['sgl']);
+            $plPropName = Str::camel(Str::plural($cls['tbl']));
+            $phpfile->doc[] = "@property-read \App\Models\\$clsName \${$sglPropName} // from hasOneOrMany hasOne";
+            $phpfile->doc[] = "@property-read \App\Models\\$clsName \${$plPropName} // from hasOneOrMany hasMany";
 
-            $phpfile->functions[] = PhpFileBuilder::mkfun($cls['sgl'], '', ["TODO use {$cls['sgl']}() OR {$cls['tbl']}(), NOT both!"], "return \$this->hasOne(\App\Models\\$clsName::class);", '\Illuminate\Database\Eloquent\Relations\HasOne');
-            $phpfile->functions[] = PhpFileBuilder::mkfun(Str::plural($cls['tbl']), '', [], "return \$this->hasMany(\App\Models\\$clsName::class);", '\Illuminate\Database\Eloquent\Relations\HasMany');
+            $phpfile->functions[] = PhpFileBuilder::mkfun($sglPropName, '', ["TODO use {$sglPropName}() OR {$plPropName}(), NOT both!"], "return \$this->hasOne(\App\Models\\$clsName::class);", '\Illuminate\Database\Eloquent\Relations\HasOne');
+            $phpfile->functions[] = PhpFileBuilder::mkfun($plPropName, '', [], "return \$this->hasMany(\App\Models\\$clsName::class);", '\Illuminate\Database\Eloquent\Relations\HasMany');
         }
 
         // Variables
-        if(count($fillable))
-            $phpfile->vars[] = "protected \$fillable = ['".implode("','", $fillable)."']";
-        if(count($casts)) {
+        if(count($fillable) > 0)
+            $phpfile->vars[] = "protected \$fillable = ['".implode("', '", $fillable)."']";
+        if(count($casts) > 0) {
             $casts = collect($casts)->mapWithKeys(function($v, $k) {
                 return [$k => "'$k' => '$v'"];
             })->join(", ");
